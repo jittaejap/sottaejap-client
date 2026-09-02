@@ -1,0 +1,12 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-surface text-ink antialiased;
+}

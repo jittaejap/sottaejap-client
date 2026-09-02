@@ -1,0 +1,20 @@
+/*
+ * 디자인 토큰 — 색·라운드·타이포의 유일한 정의 위치.
+ * 컴포넌트에는 HEX를 직접 쓰지 않는다 (eslint design-tokens/no-raw-colors).
+ * 아래 값은 피그마(석예림) 팔레트 확정 전 임시값이다. 확정되면 여기만 바꾼다.
+ */
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f5f4;
+  --color-ink: #1c1917;
+  --color-ink-muted: #78716c;
+  --color-line: #e7e5e4;
+  --color-brand: #2563eb;
+
+  /* 만족도 지도 판정 2색 + 보류 (07 §8 · E-11) */
+  --color-verdict-sustain: #16a34a;
+  --color-verdict-adjust: #ea580c;
+  --color-verdict-pending: #a8a29e;
+
+  --radius-card: 1rem;
+}
