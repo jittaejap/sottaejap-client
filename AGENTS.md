@@ -29,6 +29,7 @@ Node `24.20.0` · npm · TypeScript `~6.0.3` · Vue Router `5.x` · Pinia `4.x`
 ## 작업 전에 반드시 확인할 것
 
 - 커밋 메시지에 `Co-Authored-By` 트레일러를 넣지 않습니다.
+- `main`에 직접 push하지 않습니다(본선 30시간만 예외). 흐름은 `Issue → 작업 브랜치 → main 대상 PR → 리뷰 → Squash and merge`이고, 규칙은 [CONTRIBUTING.md](./CONTRIBUTING.md)가 정본입니다.
 - API·enum·DTO를 바꾸는 작업이면 **05 문서가 먼저 바뀌었는지** 확인합니다. 문서에 없는
   필드를 코드에서 지어내지 않습니다. 없으면 만들지 말고 사용자에게 묻습니다.
 - 화면을 추가하는 작업이면 03 문서에 IA 번호가 있는지 확인합니다.
