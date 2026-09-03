@@ -9,4 +9,6 @@ body,
 
 body {
   @apply bg-surface text-ink antialiased;
+  /* 한글은 단어 중간에서 줄바꿈되지 않도록 한다 */
+  word-break: keep-all;
 }

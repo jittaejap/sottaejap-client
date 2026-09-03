@@ -1,3 +1,6 @@
+# .claude 업로드 방지용
+.claude
+
 # Logs
 logs
 *.log
