@@ -6,16 +6,16 @@
 
 ## 정본 문서
 
-| 알고 싶은 것                | 문서                                             |
-| --------------------------- | ------------------------------------------------ |
-| 모든 결정의 출처            | `myDocs/01_결정로그.md` (충돌 시 이 문서가 우선) |
-| 화면·IA 번호                | `myDocs/03_IA_화면정의서.md`                     |
-| API 경로·DTO·enum·오류 코드 | `myDocs/05_API_명세서.md`                        |
-| 스택 버전·폴더 구조·OS 규칙 | `myDocs/07_기술스택_레포구성.md`                 |
-| 브랜치·커밋·PR·검사 명령    | [CONTRIBUTING.md](./CONTRIBUTING.md)             |
-| 설치와 실행                 | [README.md](./README.md)                         |
+| 알고 싶은 것                | 문서                                                     |
+| --------------------------- | -------------------------------------------------------- |
+| 모든 결정의 출처            | `sottaejap-docs/01_결정로그.md` (충돌 시 이 문서가 우선) |
+| 화면·IA 번호                | `sottaejap-docs/03_IA_화면정의서.md`                     |
+| API 경로·DTO·enum·오류 코드 | `sottaejap-docs/05_API_명세서.md`                        |
+| 스택 버전·폴더 구조·OS 규칙 | `sottaejap-docs/07_기술스택_레포구성.md`                 |
+| 브랜치·커밋·PR·검사 명령    | [CONTRIBUTING.md](./CONTRIBUTING.md)                     |
+| 설치와 실행                 | [README.md](./README.md)                                 |
 
-`myDocs/`는 팀 공유 폴더에 있고 이 저장소 밖입니다. 없으면 팀원에게 요청합니다.
+`sottaejap-docs/`는 별도 저장소 [jittaejap/sottaejap-docs](https://github.com/jittaejap/sottaejap-docs)입니다. 이 저장소와 같은 부모 폴더에 clone해 두고 경로는 그 기준으로 읽습니다.
 
 ## 고정된 것 — 임의로 올리지 않는다
 
