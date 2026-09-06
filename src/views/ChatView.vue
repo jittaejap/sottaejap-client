@@ -5,7 +5,9 @@ import {
   IconBulb,
   IconChartBar,
   IconCheck,
+  IconChevronDown,
   IconChevronRight,
+  IconChevronUp,
   IconClock,
   IconDiamond,
   IconGift,
@@ -29,6 +31,9 @@ import aiSmallAvatarImage from '@/assets/images/ai/02_wave_small_hat.png'
 import retrospectImage from '@/assets/images/ai/03_tablet_chat_hat.png'
 import analysisImage from '@/assets/images/ai/09_search_hat.png'
 import qnaImage from '@/assets/images/ai/06_idea_hat.png'
+import happyAvatar from '@/assets/images/ai/04_happy_cheeks_hat.png'
+import thinkingAvatar from '@/assets/images/ai/05_thinking_hat.png'
+import searchAvatar from '@/assets/images/ai/09_search_hat.png'
 
 const router = useRouter()
 
@@ -49,6 +54,15 @@ type Step =
 const step = ref<Step>('menu')
 const history = ref<{ role: 'ai' | 'user'; text: string }[]>([])
 const thread = useTemplateRef<HTMLElement>('thread')
+
+const activeAvatar = computed(() => {
+  if (step.value === 'candidate' || step.value === 'pick' || step.value === 'improvement')
+    return searchAvatar
+  if (step.value === 'wrapup') return happyAvatar
+  if (step.value === 'analysis') return qnaImage
+  if (step.value.startsWith('qa')) return thinkingAvatar
+  return aiSmallAvatarImage
+})
 
 function say(role: 'ai' | 'user', text: string) {
   history.value.push({ role, text })
@@ -141,14 +155,9 @@ const companionOptions = ['혼자', '친구', '가족', '연인', '동료', '기
 const satisfactionOptions = ['만족했어요', '별로예요', '잘 모르겠어요'] as const
 const repeatOptions = ['네', '아니오'] as const
 
-const frequencyOptions = [
-  { label: '유지', target: 4 },
-  { label: '1회 줄이기', target: 3 },
-  { label: '2회 줄이기', target: 2 },
-  { label: '3회 줄이기', target: 1 },
-]
 const currentFrequency = 4
 const frequency = ref(2)
+const reasonExpanded = ref(false)
 /** FR-08-03 — 예상 절감액은 묶음의 평균 거래금액(avgAmount) × 조정 횟수다. 부담 산식과 다르다. */
 const behaviorAvgAmount = 21_700
 const expectedSaving = computed(() => (currentFrequency - frequency.value) * behaviorAvgAmount)
@@ -291,6 +300,7 @@ function answer(question: string, value: string, nextStep: Step) {
 }
 
 function finishRetrospect() {
+  reasonExpanded.value = false
   say('user', '회고 마무리하기')
   say('ai', '회고를 바탕으로 행동 조정안을 정리해봤어요.')
   step.value = 'improvement'
@@ -300,12 +310,6 @@ function rejectSuggestion() {
   say('user', '제안을 거절할게요')
   say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂')
   step.value = 'menu'
-}
-
-function goAllocate() {
-  say('user', '목표 자금에 연결할게요')
-  say('ai', '절감되는 금액을 목표에 연결해볼까요?')
-  step.value = 'allocate'
 }
 
 function confirmAllocate() {
@@ -318,7 +322,7 @@ function confirmAllocate() {
 <template>
   <div class="flex h-full flex-col">
     <AppTopBar
-      title="AI 채팅"
+      :title="step === 'analysis' ? '소비 분석' : 'AI 채팅'"
       bell
       bell-dot
     />
@@ -371,7 +375,12 @@ function confirmAllocate() {
         v-for="(entry, index) in history"
         :key="index"
       >
-        <ChatBubble :role="entry.role">{{ entry.text }}</ChatBubble>
+        <ChatBubble
+          :role="entry.role"
+          :avatar="activeAvatar"
+          :user-solid="step === 'pick'"
+          >{{ entry.text }}</ChatBubble
+        >
       </template>
 
       <template v-if="step === 'menu'">
@@ -462,14 +471,17 @@ function confirmAllocate() {
         </div>
       </template>
       <template v-else-if="step === 'candidate'">
-        <ChatBubble role="ai">
-          <p class="font-semibold">AI가 선정한 회고예요 📌</p>
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+        >
+          <p class="font-semibold">회고 후보로 선정된 거래예요 🎯</p>
           <p class="mt-1">
             이 거래는 반복되거나 금액이 큰 지출이에요.<br />돌아볼 가치가 있는 소비로 추천드려요! 😊
           </p>
         </ChatBubble>
 
-        <div class="border-line ml-10 rounded-2xl border p-4">
+        <div class="border-line rounded-2xl border p-4">
           <div class="flex items-center gap-3">
             <MerchantBadge :name="selected.merchant" />
             <div class="flex-1">
@@ -494,8 +506,8 @@ function confirmAllocate() {
           </div>
         </div>
 
-        <div class="bg-surface-muted ml-10 rounded-2xl p-4">
-          <p class="text-ink flex items-center gap-1.5 text-sm font-semibold">
+        <div class="bg-progress-track rounded-2xl p-4">
+          <p class="text-preview-blue-ink flex items-center gap-1.5 text-[13px] font-bold">
             <IconBulb
               :size="16"
               class="text-brand"
@@ -527,7 +539,7 @@ function confirmAllocate() {
           </ul>
         </div>
 
-        <div class="ml-10 space-y-2">
+        <div class="space-y-2">
           <PrimaryButton
             arrow
             @click="acceptCandidate"
@@ -618,7 +630,11 @@ function confirmAllocate() {
       </template>
 
       <template v-else-if="step === 'qaSatisfaction'">
-        <ChatBubble role="ai">이 소비는 어땠나요?</ChatBubble>
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+          >이 소비는 어땠나요?</ChatBubble
+        >
         <ChatQuickReplies
           :options="satisfactionOptions"
           @pick="(v) => answer('이 소비는 어땠나요?', v, 'qaPurpose')"
@@ -626,7 +642,11 @@ function confirmAllocate() {
       </template>
 
       <template v-else-if="step === 'qaPurpose'">
-        <ChatBubble role="ai">이 소비의 목적은 무엇이었나요?</ChatBubble>
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+          >이 소비의 목적은 무엇이었나요?</ChatBubble
+        >
         <ChatQuickReplies
           :options="purposeOptions"
           @pick="(v) => answer('이 소비의 목적은 무엇이었나요?', v, 'qaCompanion')"
@@ -634,7 +654,11 @@ function confirmAllocate() {
       </template>
 
       <template v-else-if="step === 'qaCompanion'">
-        <ChatBubble role="ai">이 소비는 누구와 함께했나요?</ChatBubble>
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+          >이 소비는 누구와 함께했나요?</ChatBubble
+        >
         <ChatQuickReplies
           :options="companionOptions"
           @pick="(v) => answer('이 소비는 누구와 함께했나요?', v, 'qaRepeat')"
@@ -642,7 +666,11 @@ function confirmAllocate() {
       </template>
 
       <template v-else-if="step === 'qaRepeat'">
-        <ChatBubble role="ai">이 소비를 앞으로도 반복할 의향이 있나요?</ChatBubble>
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+          >이 소비를 앞으로도 반복할 의향이 있나요?</ChatBubble
+        >
         <ChatQuickReplies
           :options="repeatOptions"
           @pick="(v) => answer('이 소비를 앞으로도 반복할 의향이 있나요?', v, 'wrapup')"
@@ -650,7 +678,10 @@ function confirmAllocate() {
       </template>
 
       <template v-else-if="step === 'wrapup'">
-        <ChatBubble role="ai">
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+        >
           좋아요! 회고가 거의 완료됐어요 👏<br />저장 후 개선 방안과 맞춤 분석을 이어서
           도와드릴게요.
         </ChatBubble>
@@ -658,7 +689,7 @@ function confirmAllocate() {
           <button
             type="button"
             class="border-line text-ink flex-1 rounded-2xl border py-3.5 text-sm font-semibold"
-            @click="step = 'candidate'"
+            @click="step = 'pick'"
           >
             다른 소비 회고하기
           </button>
@@ -673,176 +704,194 @@ function confirmAllocate() {
       </template>
 
       <template v-else-if="step === 'improvement'">
-        <div class="border-line ml-10 rounded-2xl border p-4">
-          <p class="text-ink font-semibold">오늘의 개선 방안</p>
-          <div class="mt-3 flex items-center gap-3">
-            <span class="bg-brand/10 flex size-14 shrink-0 items-center justify-center rounded-2xl">
+        <div class="border-line bg-surface space-y-3 rounded-2xl border p-4">
+          <span
+            class="bg-brand text-surface inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold"
+          >
+            AI 추천
+          </span>
+
+          <div class="flex items-center gap-3">
+            <span
+              class="bg-brand-soft flex size-10 shrink-0 items-center justify-center rounded-full"
+            >
               <IconMoonStars
-                :size="26"
+                :size="22"
                 class="text-brand"
-                :stroke-width="1.5"
+                :stroke-width="1.7"
               />
             </span>
-            <div>
-              <p class="text-ink font-bold">심야 배달</p>
-              <p class="text-ink-muted text-xs">
-                밤 10시 이후 배달 주문 습관을<br />AI가 분석했어요.
+            <div class="min-w-0">
+              <p class="text-ink text-base font-bold">심야 배달 줄이기</p>
+              <p class="text-ink-faint text-xs">밤 10시 이후 배달 주문을 줄여보세요.</p>
+            </div>
+          </div>
+
+          <div class="bg-divider h-px" />
+
+          <div class="space-y-2">
+            <p class="text-ink text-[13px] font-bold">AI가 분석한 최적의 추천 빈도</p>
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-ink shrink-0 text-xl font-bold">
+                월 {{ currentFrequency }}회 →
+                <span class="text-brand">월 {{ frequency }}회</span>
+              </p>
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  aria-label="추천 빈도 줄이기"
+                  class="bg-brand text-surface flex size-10 items-center justify-center rounded-full border border-brand text-xl"
+                  :disabled="frequency <= 1"
+                  :class="{ 'opacity-40': frequency <= 1 }"
+                  @click="frequency = Math.max(1, frequency - 1)"
+                >
+                  −
+                </button>
+                <strong class="text-ink min-w-10 text-center text-[24px]">{{ frequency }}회</strong>
+                <button
+                  type="button"
+                  aria-label="추천 빈도 늘리기"
+                  class="border-line text-ink bg-surface flex size-10 items-center justify-center rounded-full border text-2xl"
+                  :disabled="frequency >= currentFrequency"
+                  :class="{ 'opacity-40': frequency >= currentFrequency }"
+                  @click="frequency = Math.min(currentFrequency, frequency + 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-divider h-px" />
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="border-brand-line h-[115px] min-w-0 rounded-xl border p-3">
+              <span class="bg-brand-soft flex size-8 items-center justify-center rounded-full">
+                <IconChartBar
+                  :size="18"
+                  class="text-brand"
+                  :stroke-width="1.7"
+                />
+              </span>
+              <p class="text-ink mt-2 text-[14px] font-semibold">예상 절감액</p>
+              <p class="text-brand mt-1 text-base font-bold">
+                월 {{ expectedSaving.toLocaleString('ko-KR') }}원
+              </p>
+            </div>
+
+            <div class="border-brand-line h-[115px] min-w-0 rounded-xl border p-3">
+              <span class="bg-brand-soft flex size-8 items-center justify-center rounded-full">
+                <IconTargetArrow
+                  :size="18"
+                  class="text-brand"
+                  :stroke-width="1.7"
+                />
+              </span>
+
+              <p class="text-ink mt-2 text-[14px] font-semibold">{{ selectedGoal.label }} 달성률</p>
+              <p class="text-ink mt-1 text-sm font-bold">
+                {{ goalBefore }}% → <span class="text-brand text-xl">{{ goalAfter }}%</span>
               </p>
             </div>
           </div>
+        </div>
 
-          <div class="mt-4 flex items-center gap-2">
-            <div class="bg-surface-muted flex-1 rounded-xl p-3 text-center">
-              <p class="text-ink-muted text-xs">현재 빈도</p>
-              <p class="text-ink text-lg font-bold">월 {{ currentFrequency }}회</p>
-            </div>
-            <IconChevronRight
-              :size="18"
-              class="text-ink-muted shrink-0"
+        <div class="border-line bg-surface overflow-hidden rounded-xl border">
+          <button
+            type="button"
+            class="text-ink-muted flex w-full items-center gap-2 px-4 py-3.5 text-left text-[13px] font-medium"
+            :aria-expanded="reasonExpanded"
+            aria-controls="action-plan-reasons"
+            @click="reasonExpanded = !reasonExpanded"
+          >
+            <IconChevronUp
+              v-if="reasonExpanded"
+              :size="16"
             />
-            <div class="bg-brand/10 flex-1 rounded-xl p-3 text-center">
-              <p class="text-brand text-xs">AI 제안 빈도</p>
-              <p class="text-brand text-lg font-bold">월 {{ frequency }}회</p>
+            <IconChevronDown
+              v-else
+              :size="16"
+            />
+            왜 이 제안이 도움이 될까요?
+          </button>
+
+          <div
+            v-if="reasonExpanded"
+            id="action-plan-reasons"
+            class="bg-brand/5 space-y-4 px-4 pb-4 pt-3"
+          >
+            <div class="flex items-start gap-3">
+              <span
+                class="bg-brand-soft flex size-9 shrink-0 items-center justify-center rounded-full"
+              >
+                <IconChartBar
+                  :size="18"
+                  class="text-brand"
+                />
+              </span>
+              <div>
+                <p class="text-ink text-[13px] font-bold">
+                  평균 주문 금액이 늦은 시간대에 더 높아요
+                </p>
+                <p class="text-ink-muted mt-1 text-xs leading-[1.4]">
+                  심야 시간대 1회 주문 금액이 평균 15% 더 높아요.
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div class="bg-brand/5 mt-3 rounded-xl p-3">
-            <p class="text-brand flex items-center gap-1.5 text-sm font-semibold">
-              <IconBulb :size="15" /> 왜 이 제안이 중요할까요?
-            </p>
-            <p class="text-ink-muted mt-1 text-xs leading-relaxed">
-              심야 배달은 불필요 지출로 이어지기 쉬우며,<br />수면과 컨디션에도 영향을 줄 수 있어요.
-            </p>
-          </div>
-
-          <p class="text-ink mt-4 text-sm font-semibold">어떻게 개선할까요?</p>
-          <div class="mt-2 grid grid-cols-4 gap-2">
-            <button
-              v-for="f in frequencyOptions"
-              :key="f.target"
-              type="button"
-              class="rounded-xl border px-1 py-2 text-center"
-              :class="
-                frequency === f.target ? 'border-brand text-brand' : 'border-line text-ink-muted'
-              "
-              @click="frequency = f.target"
-            >
-              <span class="block text-[11px] font-semibold">{{ f.label }}</span>
-              <span class="block text-[11px]">월 {{ f.target }}회</span>
-            </button>
-          </div>
-
-          <div class="bg-surface-muted mt-4 flex items-center justify-between rounded-xl p-3">
-            <span class="text-ink-muted text-xs">예상 절감액</span>
-            <span class="text-brand text-lg font-extrabold">
-              ₩{{ expectedSaving.toLocaleString('ko-KR')
-              }}<span class="text-xs font-semibold">원 / 월</span>
-            </span>
+            <div class="flex items-start gap-3">
+              <span
+                class="bg-brand-soft flex size-9 shrink-0 items-center justify-center rounded-full"
+              >
+                <IconRepeat
+                  :size="18"
+                  class="text-brand"
+                />
+              </span>
+              <div>
+                <p class="text-ink text-[13px] font-bold">습관적으로 반복되기 쉬워요</p>
+                <p class="text-ink-muted mt-1 text-xs leading-[1.4]">
+                  늦은 시간엔 계획보다 충동적인 소비가 늘어나요.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span
+                class="bg-brand-soft flex size-9 shrink-0 items-center justify-center rounded-full"
+              >
+                <IconMoonStars
+                  :size="18"
+                  class="text-brand"
+                />
+              </span>
+              <div>
+                <p class="text-ink text-[13px] font-bold">수면의 질에도 영향을 줘요</p>
+                <p class="text-ink-muted mt-1 text-xs leading-[1.4]">
+                  야식은 수면 리듬을 깨고, 다음 날 컨디션 저하로 이어질 수 있어요.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="ml-10 flex gap-2">
+        <div class="flex gap-2">
           <button
             type="button"
-            class="border-brand text-brand flex-1 rounded-2xl border py-3.5 text-sm font-semibold"
+            class="border-brand text-brand flex-1 rounded-[14px] border py-3.5 text-sm font-semibold"
             @click="rejectSuggestion"
           >
             제안 거절하기
           </button>
           <button
             type="button"
-            class="bg-brand text-surface flex flex-1 items-center justify-center gap-1 rounded-2xl py-3.5 text-sm font-semibold"
-            @click="goAllocate"
+            class="bg-brand text-surface flex flex-1 items-center justify-center gap-1 rounded-[14px] py-3.5 text-sm font-semibold"
+            @click="confirmAllocate"
           >
-            목표 자금 연결 <IconChevronRight :size="16" />
+            목표 자금에 적용하기
           </button>
         </div>
       </template>
-
-      <template v-else-if="step === 'allocate'">
-        <div class="border-line ml-10 rounded-2xl border p-4">
-          <p class="text-ink text-lg font-bold">
-            절감되는 {{ expectedSaving.toLocaleString('ko-KR') }}원을<br />어디에 연결할까요?
-          </p>
-          <p class="text-ink-muted mt-1 text-xs">선택한 목표에 이번 절감액 전액이 연결돼요.</p>
-
-          <div class="mt-3 space-y-2">
-            <button
-              v-for="g in goals"
-              :key="g.key"
-              type="button"
-              class="flex w-full items-center gap-3 rounded-2xl border p-3 text-left"
-              :class="goalKey === g.key ? 'border-brand' : 'border-line'"
-              @click="goalKey = g.key"
-            >
-              <span
-                class="bg-surface-muted flex size-11 shrink-0 items-center justify-center rounded-xl"
-              >
-                <component
-                  :is="g.icon"
-                  :size="22"
-                  class="text-brand"
-                  :stroke-width="1.5"
-                />
-              </span>
-              <span class="flex-1">
-                <span class="text-ink block text-sm font-semibold">{{ g.label }}</span>
-                <span class="text-ink-muted block text-xs">{{ g.desc }}</span>
-                <span class="text-ink-muted block text-xs">
-                  현재 {{ g.saved.toLocaleString('ko-KR') }}원 / 목표
-                  {{ g.target.toLocaleString('ko-KR') }}원
-                </span>
-              </span>
-              <span
-                class="flex size-6 shrink-0 items-center justify-center rounded-full border"
-                :class="goalKey === g.key ? 'border-brand bg-brand text-surface' : 'border-line'"
-              >
-                <IconCheck
-                  v-if="goalKey === g.key"
-                  :size="14"
-                  :stroke-width="3"
-                />
-              </span>
-            </button>
-          </div>
-
-          <div class="bg-surface-muted mt-4 rounded-2xl p-3">
-            <p class="text-ink text-sm font-semibold">선택한 목표 적용 후</p>
-            <p class="text-ink-muted mt-1 text-xs">{{ selectedGoal.label }}</p>
-            <div class="mt-2 flex items-center gap-2">
-              <div class="bg-surface flex-1 rounded-xl p-3 text-center">
-                <p class="text-ink-muted text-xs">현재 달성률</p>
-                <p class="text-ink text-xl font-extrabold">{{ goalBefore }}%</p>
-                <p class="text-ink-muted text-xs">
-                  {{ selectedGoal.saved.toLocaleString('ko-KR') }}원
-                </p>
-              </div>
-              <IconChevronRight
-                :size="18"
-                class="text-ink-muted shrink-0"
-              />
-              <div class="bg-brand/10 flex-1 rounded-xl p-3 text-center">
-                <p class="text-brand text-xs">적용 후</p>
-                <p class="text-brand text-xl font-extrabold">{{ goalAfter }}%</p>
-                <p class="text-brand text-xs">
-                  {{ (selectedGoal.saved + expectedSaving).toLocaleString('ko-KR') }}원
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="ml-10">
-          <PrimaryButton
-            arrow
-            @click="confirmAllocate"
-            >이 목표에 연결하기</PrimaryButton
-          >
-        </div>
-      </template>
-
       <template v-else-if="step === 'analysis'">
-        <div class="border-line ml-10 rounded-2xl border p-4">
+        <div class="border-line rounded-2xl border p-4">
           <p class="text-ink font-bold">AI가 분석한<br />당신의 소비 프로필이에요</p>
 
           <div class="mt-3 grid grid-cols-3 gap-2">
