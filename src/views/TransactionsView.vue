@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import {
   IconCheck,
   IconChevronDown,
@@ -91,10 +91,42 @@ const filteredTransactions = computed(() =>
 )
 
 const selectedIssuer = ref<CardIssuer>('KB')
-const uploadedFile = ref<{ name: string; size: string } | null>({
-  name: '2025_05_KB카드_거래내역.xlsx',
-  size: '2.4 MB',
-})
+const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
+const uploadedFile = ref<{ name: string; size: string } | null>(null)
+const fileError = ref('')
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function attachFile(file?: File) {
+  if (!file) return
+
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  if (extension !== 'csv' && extension !== 'xlsx') {
+    fileError.value = 'CSV 또는 XLSX 파일만 선택할 수 있어요.'
+    return
+  }
+
+  uploadedFile.value = { name: file.name, size: formatFileSize(file.size) }
+  fileError.value = ''
+}
+
+function onFileChange(event: Event) {
+  attachFile((event.target as HTMLInputElement).files?.[0])
+}
+
+function onFileDrop(event: DragEvent) {
+  attachFile(event.dataTransfer?.files[0])
+}
+
+function removeFile() {
+  uploadedFile.value = null
+  fileError.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+}
 
 const parseResult = [
   { label: '거래기간', value: '2025.05.01 ~ 2025.05.31' },
@@ -327,7 +359,11 @@ const retrospectHistory = [
 
         <div class="space-y-2">
           <p class="text-ink text-sm font-semibold">2. 파일 업로드</p>
-          <div class="border-line rounded-2xl border border-dashed px-4 py-8 text-center">
+          <div
+            class="border-line rounded-2xl border border-dashed px-4 py-8 text-center"
+            @dragover.prevent
+            @drop.prevent="onFileDrop"
+          >
             <IconUpload
               :size="28"
               class="text-brand mx-auto"
@@ -335,15 +371,28 @@ const retrospectHistory = [
             />
             <p class="text-ink-muted mt-3 text-sm">거래내역 파일을 드래그하거나</p>
             <p class="text-ink text-sm font-semibold">파일을 선택하세요.</p>
-            <p class="text-ink-muted mt-1 text-xs">CSV, XLSX, PDF 파일 지원</p>
+            <p class="text-ink-muted mt-1 text-xs">CSV, XLSX 파일 지원</p>
+            <input
+              ref="fileInput"
+              type="file"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              class="hidden"
+              @change="onFileChange"
+            />
             <button
               type="button"
               class="border-line text-ink mt-3 rounded-full border px-4 py-1.5 text-sm font-medium"
-              @click="uploadedFile = { name: '2025_05_KB카드_거래내역.xlsx', size: '2.4 MB' }"
+              @click="fileInput?.click()"
             >
               파일 선택
             </button>
           </div>
+          <p
+            v-if="fileError"
+            class="text-brand px-1 text-xs"
+          >
+            {{ fileError }}
+          </p>
           <div
             v-if="uploadedFile"
             class="border-line flex items-center gap-3 rounded-2xl border p-3"
@@ -366,14 +415,17 @@ const retrospectHistory = [
               type="button"
               class="text-ink-muted shrink-0"
               aria-label="파일 제거"
-              @click="uploadedFile = null"
+              @click="removeFile"
             >
               <IconX :size="18" />
             </button>
           </div>
         </div>
 
-        <div class="space-y-2">
+        <div
+          v-if="uploadedFile"
+          class="space-y-2"
+        >
           <div class="flex items-center justify-between">
             <p class="text-ink text-sm font-semibold">3. 파싱 결과 확인</p>
             <span
@@ -397,7 +449,6 @@ const retrospectHistory = [
             </dl>
           </div>
         </div>
-
         <PrimaryButton :disabled="uploadedFile === null">업로드 완료</PrimaryButton>
       </template>
 
