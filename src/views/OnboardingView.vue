@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IconAdjustmentsHorizontal,
@@ -24,6 +24,7 @@ import {
 import type { CardIssuer, Satisfaction } from '@/api/enums'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
+import NumberUnitInput from '@/components/common/NumberUnitInput.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
 import SatisfactionPicker from '@/components/common/SatisfactionPicker.vue'
 
@@ -40,7 +41,7 @@ const goalTypes: { value: GoalType; label: string; sub: string; icon: typeof Ico
 ]
 const goalType = ref<GoalType | null>('TRAVEL')
 const goalAmount = ref(3_000_000)
-const amountInput = useTemplateRef('amountInput')
+const goalPeriod = ref(12)
 
 function addAmount(delta: number) {
   goalAmount.value += delta
@@ -177,10 +178,7 @@ function next() {
 
         <div class="space-y-2">
           <span class="text-ink text-sm font-semibold">목표 금액</span>
-          <MoneyInput
-            ref="amountInput"
-            v-model="goalAmount"
-          />
+          <MoneyInput v-model="goalAmount" />
           <div class="flex gap-2">
             <button
               type="button"
@@ -203,19 +201,30 @@ function next() {
             >
               +100만
             </button>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <span class="text-ink text-sm font-semibold">목표 기간</span>
+          <NumberUnitInput
+            v-model="goalPeriod"
+            unit="개월"
+          />
+          <div class="flex gap-2">
             <button
+              v-for="period in [3, 6, 12]"
+              :key="period"
               type="button"
               class="border-line text-ink-muted rounded-full border px-3 py-1.5 text-xs font-medium"
-              @click="amountInput?.$el.querySelector('input')?.focus()"
+              @click="goalPeriod += period"
             >
-              직접 입력
+              +{{ period }}개월
             </button>
           </div>
         </div>
       </section>
 
       <section
-        v-else-if="step === 2"
+        v-else-if="step === 3"
         class="space-y-6"
       >
         <div>
@@ -228,6 +237,17 @@ function next() {
             >월 예산 <span class="text-ink-muted font-normal">(선택)</span></span
           >
           <MoneyInput v-model="monthlyBudget" />
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="amount in [50_000, 100_000, 500_000, 1_000_000]"
+              :key="amount"
+              type="button"
+              class="border-line text-ink-muted rounded-full border px-3 py-1.5 text-xs font-medium"
+              @click="monthlyBudget += amount"
+            >
+              +{{ amount / 10_000 }}만원
+            </button>
+          </div>
           <p class="text-ink-muted text-xs">정확한 분석을 위해 월 예산을 입력해 주세요.</p>
         </div>
 
@@ -265,7 +285,7 @@ function next() {
       </section>
 
       <section
-        v-else-if="step === 3"
+        v-else-if="step === 2"
         class="space-y-6"
       >
         <div>

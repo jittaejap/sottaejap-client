@@ -5,12 +5,16 @@
  */
 @theme {
   --color-surface: #ffffff;
-  --color-surface-muted: #f5f5f4;
-  --color-ink: #1c1917;
-  --color-ink-muted: #78716c;
-  --color-ink-faint: #b3b3b3;
-  --color-line: #e7e5e4;
-  --color-brand: #fd6641;
+  --color-surface-muted: #f7f8fa;
+  --color-ink: #1a1d20;
+  --color-ink-muted: #5e656b;
+  --color-ink-faint: #8e959b;
+  --color-line: #e5eaf0;
+  --color-brand: #ff5a2e;
+  --color-brand-soft: #fff5f2;
+  --color-progress-track: #f0f3f6;
+  --color-success: #22c55e;
+  --color-success-soft: #f1fcf4;
 
   /* 만족도 지도 판정 2색 + 보류 (07 §8 · E-11) — 이 3색은 지도 점·배지 전용이다 */
   --color-verdict-sustain: #16a34a;
