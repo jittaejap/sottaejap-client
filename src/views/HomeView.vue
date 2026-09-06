@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  IconArrowUpRight,
   IconBeach,
   IconBell,
   IconChevronRight,
@@ -10,8 +9,6 @@ import {
   IconCrown,
   IconMoodAnnoyed,
   IconMoodX,
-  IconMoonStars,
-  IconRobot,
   IconSettings,
   IconSparkles,
   IconThumbUp,
@@ -22,8 +19,12 @@ import AppCard from '@/components/common/AppCard.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import WeeklyTrendChart from '@/components/common/WeeklyTrendChart.vue'
 import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
+import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
+import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
+import { useMapStore } from '@/stores/map'
 
 const router = useRouter()
+const mapStore = useMapStore()
 const subview = ref<'dashboard' | 'goal' | 'savings'>('dashboard')
 
 const goal = {
@@ -42,20 +43,56 @@ const savingsActions = [
   { label: '택시 감소', amount: 11_000, behavior: '택시' },
 ]
 
-const weeklyTrend = [14_000, 9_000, 23_000, 18_000, 27_000, 46_000, 33_000]
-const weeklyLabels = ['월', '화', '수', '목', '금', '토', '일']
+const weeklyTrend = [19_000, 24_000, 17_000, 31_000, 28_000, 35_000, 46_000]
+const weeklyLabels = ['3월', '4월', '5월', '6월', '7월', '8월', '9월']
 const topCategories = [
   { label: '외식/배달', amount: 21_000 },
   { label: '카페/간식', amount: 13_000 },
   { label: '교통', amount: 12_000 },
 ]
 
-const satisfactionPreview = [
-  { key: PRESCRIPTION_LABEL.PROTECT, count: 378, icon: IconCrown, tone: 'sustain' as const },
-  { key: PRESCRIPTION_LABEL.KEEP, count: 478, icon: IconThumbUp, tone: 'sustain' as const },
-  { key: PRESCRIPTION_LABEL.MINOR, count: 278, icon: IconMoodAnnoyed, tone: 'adjust' as const },
-  { key: PRESCRIPTION_LABEL.PRIORITY, count: 378, icon: IconMoodX, tone: 'adjust' as const },
-]
+const quadrantCounts = computed(() => {
+  const points = mapStore.data?.points
+  const counts = { PROTECT: 0, KEEP: 0, MINOR: 0, PRIORITY: 0 }
+  if (points === undefined || points.length === 0)
+    return { PROTECT: 1, KEEP: 2, MINOR: 1, PRIORITY: 2 }
+  for (const point of points) {
+    if (point.evaluationStatus === 'RESOLVED' && point.quadrant !== null)
+      counts[point.quadrant] += 1
+  }
+  return counts
+})
+
+const satisfactionPreview = computed(() => [
+  {
+    key: PRESCRIPTION_LABEL.PROTECT,
+    count: quadrantCounts.value.PROTECT,
+    icon: IconCrown,
+    bg: 'bg-preview-green',
+    text: 'text-preview-green-ink',
+  },
+  {
+    key: PRESCRIPTION_LABEL.KEEP,
+    count: quadrantCounts.value.KEEP,
+    icon: IconThumbUp,
+    bg: 'bg-preview-blue',
+    text: 'text-preview-blue-ink',
+  },
+  {
+    key: PRESCRIPTION_LABEL.MINOR,
+    count: quadrantCounts.value.MINOR,
+    icon: IconMoodAnnoyed,
+    bg: 'bg-preview-yellow',
+    text: 'text-preview-yellow-ink',
+  },
+  {
+    key: PRESCRIPTION_LABEL.PRIORITY,
+    count: quadrantCounts.value.PRIORITY,
+    icon: IconMoodX,
+    bg: 'bg-preview-red',
+    text: 'text-preview-red-ink',
+  },
+])
 
 function openBehavior(behavior: string) {
   void router.push({ path: '/map', query: { behavior } })
@@ -102,141 +139,140 @@ function openBehavior(behavior: string) {
       :back-handler="() => (subview = 'dashboard')"
     />
 
-    <main class="flex-1 space-y-4 overflow-y-auto px-4 pb-6">
+    <main class="flex-1 space-y-4 overflow-y-auto px-5 pb-6">
       <template v-if="subview === 'dashboard'">
-        <AppCard>
-          <div class="flex items-center justify-between">
-            <span class="text-ink text-sm font-semibold">목표 달성 현황</span>
-            <button
-              type="button"
-              class="bg-surface-muted text-ink-muted flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
-              @click="subview = 'goal'"
-            >
-              목표 관리 <IconChevronRight :size="12" />
-            </button>
-          </div>
-          <div class="mt-4 flex items-center gap-4">
-            <span
-              class="bg-surface-muted flex size-16 shrink-0 items-center justify-center rounded-2xl"
-            >
-              <IconBeach
-                :size="32"
-                class="text-brand"
-                :stroke-width="1.5"
-              />
+        <button
+          type="button"
+          class="border-line bg-surface flex w-full flex-col gap-3 rounded-[20px] border p-4 text-left"
+          @click="subview = 'goal'"
+        >
+          <span class="flex w-full items-center justify-between">
+            <span class="text-ink text-[13px] font-bold">목표 관리</span>
+            <IconChevronRight
+              :size="14"
+              class="text-ink-faint"
+            />
+          </span>
+          <span class="flex w-full items-center gap-4">
+            <img
+              :src="goalTravelImage"
+              alt="여행 자금"
+              class="size-[90px] shrink-0 rounded-2xl object-contain"
+            />
+            <span class="flex min-w-0 flex-1 flex-col gap-1">
+              <span class="text-ink-faint text-[13px] font-medium">{{ goal.label }}</span>
+              <span class="flex items-baseline gap-1.5">
+                <span class="text-brand text-4xl font-black">{{ goal.percent }}%</span>
+                <span class="text-ink-faint text-[13px]">달성 중</span>
+              </span>
+              <span class="text-ink-faint text-[13px] font-medium"
+                >{{ goal.saved.toLocaleString('ko-KR') }} /
+                {{ goal.target.toLocaleString('ko-KR') }}원</span
+              >
             </span>
-            <div class="flex-1">
-              <p class="text-ink-muted text-sm">{{ goal.label }}</p>
-              <p class="text-brand text-3xl font-extrabold">{{ goal.percent }}%</p>
-              <p class="text-ink-muted text-sm">
-                {{ goal.saved.toLocaleString('ko-KR') }} /
-                {{ goal.target.toLocaleString('ko-KR') }}원
-              </p>
-            </div>
-          </div>
-          <div class="bg-surface-muted mt-3 h-2 w-full rounded-full">
-            <div
-              class="bg-brand h-2 rounded-full"
+          </span>
+          <span class="bg-progress-track h-1.5 w-full overflow-hidden rounded-full">
+            <span
+              class="bg-brand block h-full rounded-full"
               :style="{ width: goal.percent + '%' }"
-            ></div>
-          </div>
-        </AppCard>
+            ></span>
+          </span>
+        </button>
 
         <div class="grid grid-cols-2 gap-3">
-          <AppCard
-            class="cursor-pointer"
+          <button
+            type="button"
+            class="border-line bg-surface flex h-[126px] flex-col items-start gap-2.5 rounded-[20px] border p-4 text-left"
             @click="subview = 'savings'"
           >
-            <p class="text-ink-muted text-xs font-semibold">이번 달 절감액</p>
-            <p class="text-brand mt-1 text-xl font-extrabold">
-              46,000<span class="text-sm font-semibold">원</span>
-            </p>
-            <p class="text-brand mt-1 flex items-center gap-1 text-xs font-medium">
-              <IconArrowUpRight :size="13" />
-              지난달 대비 +12%
-            </p>
-          </AppCard>
-          <AppCard
-            class="cursor-pointer"
+            <span class="text-ink-faint text-[13px] font-medium">이번 달 절감액</span>
+            <span class="text-brand flex items-baseline gap-0.5 font-bold"
+              ><span class="text-[22px]">46,000</span><span class="text-sm">원</span></span
+            >
+            <span class="bg-brand-soft text-brand rounded-md px-2 py-1 text-[10px] font-bold"
+              >전월 대비 +12%</span
+            >
+          </button>
+          <button
+            type="button"
+            class="border-line bg-surface flex h-[126px] flex-col items-start gap-1.5 rounded-[20px] border p-4 text-left"
             @click="openBehavior('심야 배달')"
           >
-            <div class="flex items-center justify-between">
-              <p class="text-ink-muted text-xs font-semibold">행동 변화</p>
-              <span class="bg-surface-muted text-ink-muted rounded-full px-1.5 py-0.5 text-[10px]"
+            <span class="flex w-full items-center justify-between">
+              <span class="text-ink-faint text-[13px] font-medium">행동 변화</span>
+              <span class="bg-progress-track text-ink-faint rounded-md px-1.5 py-0.5 text-[10px]"
                 >이번 달 기준</span
               >
-            </div>
-            <p class="text-ink mt-1 flex items-center gap-1 text-sm font-semibold">
-              <IconMoonStars
-                :size="14"
-                class="text-brand"
-              />
-              심야 배달
-            </p>
-            <p class="text-ink text-lg font-extrabold">4회 → 2회</p>
-            <p class="text-satisfaction-high text-xs font-medium">-50% 감소</p>
-          </AppCard>
+            </span>
+            <span class="text-ink text-[13px] font-medium">심야 배달</span>
+            <span class="text-ink text-xl font-bold">4회 → 2회</span>
+            <span class="text-brand text-xs font-bold">-50% 감소</span>
+          </button>
         </div>
 
         <button
           type="button"
-          class="bg-brand/5 border-brand/20 block w-full rounded-2xl border p-4 text-left"
+          class="border-brand bg-brand-soft flex min-h-[122px] w-full items-center rounded-[20px] border p-4 text-left"
           @click="router.push('/chat')"
         >
-          <span class="text-brand flex items-center gap-1.5 text-sm font-semibold">
-            <IconSparkles :size="15" /> AI 브리핑
-          </span>
-          <div class="mt-2 flex items-center gap-3">
-            <span class="bg-surface flex size-12 shrink-0 items-center justify-center rounded-full">
-              <IconRobot
-                :size="24"
+          <span class="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+            <span class="text-ink flex items-center gap-1 text-xs font-bold"
+              ><IconSparkles
+                :size="13"
                 class="text-brand"
               />
-            </span>
-            <p class="text-ink text-sm leading-relaxed">
-              심야 배달을 줄이고 직접 요리를 늘린 덕분에 식비가 18% 줄었어요! 👍
-            </p>
-          </div>
-          <span class="text-brand mt-2 flex items-center text-xs font-semibold"
-            >자세히 보기 <IconChevronRight :size="13"
-          /></span>
+              AI 브리핑</span
+            >
+            <span class="text-ink-muted text-sm font-bold leading-5"
+              >심야 배달을 줄인 덕분에 식비가<br />18% 줄었어요! 👍</span
+            >
+            <span class="text-ink-faint text-[10px] font-medium">자세히 보기 &gt;</span>
+          </span>
+          <img
+            :src="aiBriefingImage"
+            alt=""
+            class="h-[90px] w-[124px] shrink-0 object-contain"
+          />
         </button>
 
-        <div>
-          <div class="mb-2 flex items-center justify-between">
-            <span class="text-ink text-sm font-semibold">만족도 지도 미리보기</span>
+        <section class="border-line bg-surface flex flex-col gap-3 rounded-[20px] border p-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-ink text-[13px] font-bold">만족도 지도 미리보기</h2>
             <button
               type="button"
-              class="text-ink-muted flex items-center text-xs"
+              class="text-ink-faint text-xs font-medium"
               @click="router.push('/map')"
             >
-              전체 보기 <IconChevronRight :size="13" />
+              전체 보기 &gt;
             </button>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-2.5">
             <button
               v-for="q in satisfactionPreview"
               :key="q.key"
               type="button"
-              class="border-line rounded-2xl border p-3 text-left"
+              class="flex items-center justify-between rounded-2xl px-3.5 py-3 text-left"
+              :class="q.bg"
               @click="router.push('/map')"
             >
               <span
-                class="flex items-center gap-1 text-sm font-bold"
-                :class="q.tone === 'sustain' ? 'text-verdict-sustain' : 'text-verdict-adjust'"
+                class="flex items-center gap-2 text-[13px] font-bold"
+                :class="q.text"
               >
                 <component
                   :is="q.icon"
-                  :size="15"
-                />
-                {{ q.key }}
+                  :size="20"
+                />{{ q.key }}
               </span>
-              <span class="text-ink-muted text-xs">({{ q.count }})</span>
+              <span
+                class="text-[13px] font-medium"
+                :class="q.text"
+                >{{ q.count }}개</span
+              >
             </button>
           </div>
-        </div>
+        </section>
       </template>
-
       <template v-else-if="subview === 'goal'">
         <div class="flex items-center gap-3">
           <span
@@ -358,14 +394,14 @@ function openBehavior(behavior: string) {
         <AppCard>
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-ink-muted text-sm">이번 주 총 절감액</p>
+              <p class="text-ink-muted text-sm">이번 달 총 절감액</p>
               <p class="text-brand text-3xl font-extrabold">
                 46,000<span class="text-lg">원</span>
               </p>
               <span
                 class="text-satisfaction-high bg-satisfaction-high/10 mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
               >
-                지난주 대비 ▲+18%
+                전월 대비 +12%
               </span>
             </div>
             <span
@@ -381,7 +417,7 @@ function openBehavior(behavior: string) {
         </AppCard>
 
         <AppCard>
-          <p class="text-ink text-sm font-semibold">주간 절감액 추이</p>
+          <p class="text-ink text-sm font-semibold">월별 절감액 추이</p>
           <WeeklyTrendChart
             :values="weeklyTrend"
             :labels="weeklyLabels"
