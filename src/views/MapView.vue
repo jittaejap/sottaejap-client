@@ -3,13 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   IconBulb,
+  IconCircleX,
+  IconCrown,
   IconChevronDown,
   IconMessage2,
+  IconMoodNeutral,
   IconMoodSmile,
   IconMoonStars,
   IconPencil,
   IconReceipt2,
   IconStar,
+  IconThumbUp,
 } from '@tabler/icons-vue'
 
 import type { SatisfactionMap, SatisfactionMapPoint } from '@/api/types'
@@ -21,10 +25,11 @@ import PrimaryButton from '@/components/common/PrimaryButton.vue'
 import SatisfactionScatter from '@/components/map/SatisfactionScatter.vue'
 import {
   PRESCRIPTION_LABEL,
+  QUADRANT_DOT_CLASS,
   VERDICT_BADGE,
-  VERDICT_DOT_CLASS,
   VERDICT_SOFT_BG_CLASS,
   VERDICT_TEXT_CLASS,
+  quadrantTone,
   verdictTone,
 } from '@/components/map/verdictStyle'
 import { useMapStore } from '@/stores/map'
@@ -177,12 +182,8 @@ const satisfactionScore = computed(() =>
 )
 
 const selectedTone = computed(() => (selected.value ? verdictTone(selected.value) : 'pending'))
-
-/** FR-07-04 처방 문구 5종. quadrant 코드 자체는 화면에 내지 않는다 (FR-06-03). */
-const prescriptionLabel = computed(() =>
-  selected.value?.quadrant === undefined || selected.value?.quadrant === null
-    ? PRESCRIPTION_LABEL.PENDING
-    : PRESCRIPTION_LABEL[selected.value.quadrant],
+const selectedQuadrantTone = computed(() =>
+  selected.value ? quadrantTone(selected.value) : 'pending',
 )
 
 const burdenLabel = computed(() => {
@@ -263,16 +264,40 @@ function selectPoint(behaviorId: number) {
 
         <div class="border-line relative rounded-2xl border p-3">
           <div
-            class="text-ink-muted pointer-events-none absolute top-5 right-6 left-9 flex justify-between text-xs font-bold"
+            class="pointer-events-none absolute top-5 right-6 left-9 z-10 flex justify-between text-xs font-bold"
           >
-            <span class="text-verdict-sustain">{{ PRESCRIPTION_LABEL.PROTECT }}</span>
-            <span class="text-verdict-sustain">{{ PRESCRIPTION_LABEL.KEEP }}</span>
+            <span class="text-map-awesome flex items-center gap-1">
+              <IconCrown
+                :size="17"
+                :stroke-width="2.5"
+              />
+              {{ PRESCRIPTION_LABEL.PROTECT }}
+            </span>
+            <span class="text-map-great flex items-center gap-1">
+              <IconThumbUp
+                :size="17"
+                :stroke-width="2.5"
+              />
+              {{ PRESCRIPTION_LABEL.KEEP }}
+            </span>
           </div>
           <div
-            class="text-ink-muted pointer-events-none absolute right-6 bottom-11 left-9 flex justify-between text-xs font-bold"
+            class="pointer-events-none absolute right-6 bottom-11 left-9 z-10 flex justify-between text-xs font-bold"
           >
-            <span class="text-verdict-adjust">{{ PRESCRIPTION_LABEL.MINOR }}</span>
-            <span class="text-verdict-adjust">{{ PRESCRIPTION_LABEL.PRIORITY }}</span>
+            <span class="text-map-umm flex items-center gap-1">
+              <IconMoodNeutral
+                :size="17"
+                :stroke-width="2.5"
+              />
+              {{ PRESCRIPTION_LABEL.MINOR }}
+            </span>
+            <span class="text-map-hmm flex items-center gap-1">
+              <IconCircleX
+                :size="17"
+                :stroke-width="2.5"
+              />
+              {{ PRESCRIPTION_LABEL.PRIORITY }}
+            </span>
           </div>
 
           <div class="flex">
@@ -303,7 +328,7 @@ function selectPoint(behaviorId: number) {
           <div class="flex items-center gap-2">
             <span
               class="size-3 shrink-0 rounded-full"
-              :class="VERDICT_DOT_CLASS[selectedTone]"
+              :class="QUADRANT_DOT_CLASS[selectedQuadrantTone]"
             ></span>
             <p class="text-ink font-bold">{{ selected.name }}({{ selected.retrospectCount }})</p>
             <span
@@ -314,13 +339,6 @@ function selectPoint(behaviorId: number) {
               {{ VERDICT_BADGE[selectedTone] }}
             </span>
           </div>
-
-          <p
-            class="mt-1 text-sm font-bold"
-            :class="VERDICT_TEXT_CLASS[selectedTone]"
-          >
-            {{ prescriptionLabel }}
-          </p>
 
           <div
             class="divide-line border-line mt-3 grid grid-cols-3 divide-x rounded-xl border py-2 text-center"
