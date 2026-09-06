@@ -5,7 +5,7 @@ import VChart from 'vue-echarts'
 import '@/composables/useEcharts'
 import { cssVar } from '@/composables/useCssVar'
 import type { SatisfactionMap, SatisfactionMapPoint } from '@/api/types'
-import { VERDICT_COLOR_VAR, VERDICT_OPACITY, verdictTone } from '@/components/map/verdictStyle'
+import { QUADRANT_COLOR_VAR, QUADRANT_OPACITY, quadrantTone } from '@/components/map/verdictStyle'
 
 const props = defineProps<{
   points: SatisfactionMapPoint[]
@@ -15,13 +15,34 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [behaviorId: number] }>()
 
+const plotGridStyle = computed(() => {
+  const maxBurden = Math.max(...props.points.map((point) => point.burdenRatio), 0.01) * 1.35
+  const xPercent =
+    props.boundaries.x === null
+      ? 50
+      : Math.min(100, Math.max(0, (props.boundaries.x / maxBurden) * 100))
+  const topPercent =
+    props.boundaries.y === null
+      ? 50
+      : Math.min(100, Math.max(0, ((1 - props.boundaries.y) / 2) * 100))
+
+  return {
+    gridTemplateColumns: xPercent + '% ' + (100 - xPercent) + '%',
+    gridTemplateRows: topPercent + '% ' + (100 - topPercent) + '%',
+  }
+})
+
 function pointColor(point: SatisfactionMapPoint) {
-  return cssVar(VERDICT_COLOR_VAR[verdictTone(point)])
+  return cssVar(QUADRANT_COLOR_VAR[quadrantTone(point)])
 }
 
 const option = computed(() => {
   const line = cssVar('--color-line')
   const inkMuted = cssVar('--color-ink-muted')
+  const awesomeSoft = cssVar('--color-map-awesome-soft')
+  const greatSoft = cssVar('--color-map-great-soft')
+  const ummSoft = cssVar('--color-map-umm-soft')
+  const hmmSoft = cssVar('--color-map-hmm-soft')
   const maxBurden = Math.max(...props.points.map((p) => p.burdenRatio), 0.01)
 
   const markLineData: { xAxis?: number; yAxis?: number }[] = []
@@ -60,7 +81,7 @@ const option = computed(() => {
           selected: p.behaviorId === props.selectedId,
           itemStyle: {
             color: pointColor(p),
-            opacity: VERDICT_OPACITY[verdictTone(p)],
+            opacity: QUADRANT_OPACITY[quadrantTone(p)],
             borderColor: pointColor(p),
             borderWidth: p.behaviorId === props.selectedId ? 6 : 0,
           },
@@ -70,10 +91,50 @@ const option = computed(() => {
             distance: 6,
             fontSize: 11,
             fontWeight: 'bold',
-            color: verdictTone(p) === 'pending' ? inkMuted : pointColor(p),
+            color: quadrantTone(p) === 'pending' ? inkMuted : pointColor(p),
             formatter: `${p.name}(${p.retrospectCount})`,
           },
         })),
+        markArea:
+          props.boundaries.x !== null && props.boundaries.y !== null
+            ? {
+                silent: true,
+                data: [
+                  [
+                    {
+                      xAxis: 0,
+                      yAxis: props.boundaries.y,
+                      itemStyle: { color: awesomeSoft },
+                    },
+                    { xAxis: props.boundaries.x, yAxis: 1 },
+                  ],
+                  [
+                    {
+                      xAxis: props.boundaries.x,
+                      yAxis: props.boundaries.y,
+                      itemStyle: { color: greatSoft },
+                    },
+                    { xAxis: maxBurden * 1.35, yAxis: 1 },
+                  ],
+                  [
+                    {
+                      xAxis: 0,
+                      yAxis: -1,
+                      itemStyle: { color: ummSoft },
+                    },
+                    { xAxis: props.boundaries.x, yAxis: props.boundaries.y },
+                  ],
+                  [
+                    {
+                      xAxis: props.boundaries.x,
+                      yAxis: -1,
+                      itemStyle: { color: hmmSoft },
+                    },
+                    { xAxis: maxBurden * 1.35, yAxis: props.boundaries.y },
+                  ],
+                ],
+              }
+            : undefined,
         markLine: {
           silent: true,
           symbol: 'none',
@@ -94,8 +155,19 @@ function onClick(params: unknown) {
 
 <template>
   <!-- vue-echarts가 자체 스타일로 height:100%를 주므로 높이는 감싼 요소가 정한다. -->
-  <div class="h-72 w-full">
+  <div class="relative h-72 w-full">
+    <div
+      class="pointer-events-none absolute inset-[18px] grid overflow-hidden"
+      :style="plotGridStyle"
+      aria-hidden="true"
+    >
+      <span class="bg-map-awesome-soft" />
+      <span class="bg-map-great-soft" />
+      <span class="bg-map-umm-soft" />
+      <span class="bg-map-hmm-soft" />
+    </div>
     <VChart
+      class="relative z-10"
       :option="option"
       autoresize
       @click="onClick"

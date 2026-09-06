@@ -3,17 +3,22 @@ import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IconBulb,
+  IconBurger,
+  IconCar,
   IconChartBar,
+  IconChartPie,
   IconCheck,
   IconChevronDown,
   IconChevronRight,
   IconChevronUp,
   IconClock,
-  IconDiamond,
+  IconCoffee,
   IconGift,
   IconMoonStars,
+  IconMoped,
   IconRepeat,
   IconSearch,
+  IconShieldCheck,
   IconShieldLock,
   IconTargetArrow,
 } from '@tabler/icons-vue'
@@ -32,6 +37,7 @@ import retrospectImage from '@/assets/images/ai/03_tablet_chat_hat.png'
 import analysisImage from '@/assets/images/ai/09_search_hat.png'
 import qnaImage from '@/assets/images/ai/06_idea_hat.png'
 import happyAvatar from '@/assets/images/ai/04_happy_cheeks_hat.png'
+import cheerAvatar from '@/assets/images/ai/07_cheer_hat.png'
 import thinkingAvatar from '@/assets/images/ai/05_thinking_hat.png'
 import searchAvatar from '@/assets/images/ai/09_search_hat.png'
 
@@ -52,7 +58,7 @@ type Step =
   | 'qna'
 
 const step = ref<Step>('menu')
-const history = ref<{ role: 'ai' | 'user'; text: string }[]>([])
+const history = ref<{ role: 'ai' | 'user'; text: string; avatar?: string }[]>([])
 const thread = useTemplateRef<HTMLElement>('thread')
 
 const activeAvatar = computed(() => {
@@ -64,8 +70,8 @@ const activeAvatar = computed(() => {
   return aiSmallAvatarImage
 })
 
-function say(role: 'ai' | 'user', text: string) {
-  history.value.push({ role, text })
+function say(role: 'ai' | 'user', text: string, avatar?: string) {
+  history.value.push({ role, text, avatar: role === 'ai' ? avatar : undefined })
 }
 
 watch(
@@ -200,11 +206,22 @@ const goalAfter = computed(() =>
 const profileTags = [
   {
     label: '가치 중심 소비',
-    desc: '가치와 만족을 중심으로 지출하는 경향이 있어요.',
-    icon: IconDiamond,
+    icon: IconShieldCheck,
+    cardClass: 'bg-profile-green',
+    iconClass: 'bg-success/15 text-success',
   },
-  { label: '편의성 우선', desc: '시간과 편의를 위해 지출하는 편이에요.', icon: IconClock },
-  { label: '변동 지출 편중', desc: '예측하기 어려운 변동 지출이 많아요.', icon: IconChartBar },
+  {
+    label: '편의성 우선',
+    icon: IconClock,
+    cardClass: 'bg-profile-orange',
+    iconClass: 'bg-preview-yellow-ink/15 text-preview-yellow-ink',
+  },
+  {
+    label: '변동 지출 편중',
+    icon: IconChartPie,
+    cardClass: 'bg-profile-red',
+    iconClass: 'bg-preview-red-ink/15 text-preview-red-ink',
+  },
 ]
 
 const behaviorSummary = [
@@ -212,28 +229,35 @@ const behaviorSummary = [
     label: '친구와 외식',
     desc: '주 1~2회 외식으로 관계를 즐겨요.',
     verdict: PRESCRIPTION_LABEL.PROTECT,
-    tone: 'sustain' as const,
+    icon: IconBurger,
+    iconClass: 'bg-profile-green text-success',
+    tagClass: 'bg-success/10 text-success',
   },
   {
     label: '카페',
-    desc: '주중 커피 지출이 평균 이상이에요.',
+    desc: '일품 커피를 즐겨요.',
     verdict: PRESCRIPTION_LABEL.KEEP,
-    tone: 'sustain' as const,
+    icon: IconCoffee,
+    iconClass: 'bg-profile-blue text-preview-blue-ink',
+    tagClass: 'bg-preview-blue-ink/10 text-preview-blue-ink',
   },
   {
     label: '택시 이용',
     desc: '교통비 지출이 다소 높은 편이에요.',
     verdict: PRESCRIPTION_LABEL.MINOR,
-    tone: 'adjust' as const,
+    icon: IconCar,
+    iconClass: 'bg-profile-orange text-preview-yellow-ink',
+    tagClass: 'bg-preview-yellow-ink/10 text-preview-yellow-ink',
   },
   {
     label: '심야 배달',
     desc: '잦은 심야 배달이 지출을 늘려요.',
     verdict: PRESCRIPTION_LABEL.PRIORITY,
-    tone: 'adjust' as const,
+    icon: IconMoped,
+    iconClass: 'bg-profile-red text-preview-red-ink',
+    tagClass: 'bg-preview-red-ink/10 text-preview-red-ink',
   },
 ]
-
 function startRetrospect() {
   say('user', '회고를 등록하고 싶어요!')
   step.value = 'candidate'
@@ -241,7 +265,7 @@ function startRetrospect() {
 
 function startAnalysis() {
   say('user', '제 소비를 분석해주세요')
-  say('ai', '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.')
+  say('ai', '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.', qnaImage)
   step.value = 'analysis'
 }
 
@@ -272,7 +296,7 @@ function acceptCandidate() {
 
 function openPicker() {
   say('user', '다른 거래를 선택할게요')
-  say('ai', '좋아요! 어떤 거래로 회고를 시작할까요? 아래에서 선택해 주세요.')
+  say('ai', '좋아요! 어떤 거래로 회고를 시작할까요? 아래에서 선택해 주세요.', searchAvatar)
   step.value = 'pick'
 }
 
@@ -289,12 +313,13 @@ function startQa() {
   say(
     'ai',
     `좋아요! ${selected.value.merchant} ${selected.value.amount.toLocaleString('ko-KR')}원에 대해 함께 돌아볼까요? 😊`,
+    cheerAvatar,
   )
   step.value = 'qaSatisfaction'
 }
 
 function answer(question: string, value: string, nextStep: Step) {
-  say('ai', question)
+  say('ai', question, thinkingAvatar)
   say('user', value)
   step.value = nextStep
 }
@@ -302,19 +327,19 @@ function answer(question: string, value: string, nextStep: Step) {
 function finishRetrospect() {
   reasonExpanded.value = false
   say('user', '회고 마무리하기')
-  say('ai', '회고를 바탕으로 행동 조정안을 정리해봤어요.')
+  say('ai', '회고를 바탕으로 행동 조정안을 정리해봤어요.', searchAvatar)
   step.value = 'improvement'
 }
 
 function rejectSuggestion() {
   say('user', '제안을 거절할게요')
-  say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂')
+  say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂', aiSmallAvatarImage)
   step.value = 'menu'
 }
 
 function confirmAllocate() {
   say('user', `${selectedGoal.value.label}에 연결할게요`)
-  say('ai', '마지막으로 이번 소비 상황을 요약해드릴게요.')
+  say('ai', '마지막으로 이번 소비 상황을 요약해드릴게요.', qnaImage)
   step.value = 'analysis'
 }
 </script>
@@ -377,7 +402,7 @@ function confirmAllocate() {
       >
         <ChatBubble
           :role="entry.role"
-          :avatar="activeAvatar"
+          :avatar="entry.avatar"
           :user-solid="step === 'pick'"
           >{{ entry.text }}</ChatBubble
         >
@@ -891,60 +916,80 @@ function confirmAllocate() {
         </div>
       </template>
       <template v-else-if="step === 'analysis'">
-        <div class="border-line rounded-2xl border p-4">
-          <p class="text-ink font-bold">AI가 분석한<br />당신의 소비 프로필이에요</p>
+        <section class="bg-surface flex flex-col gap-5 rounded-3xl p-5">
+          <h2 class="text-ink text-base font-bold leading-[1.45]">
+            AI가 분석한 당신의<br />소비 프로필이에요
+          </h2>
 
-          <div class="mt-3 grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <div
               v-for="tag in profileTags"
               :key="tag.label"
-              class="border-line rounded-2xl border p-3 text-center"
+              class="flex h-[82px] min-w-0 flex-col items-center gap-2 rounded-2xl p-3"
+              :class="tag.cardClass"
             >
-              <component
-                :is="tag.icon"
-                :size="22"
-                class="text-brand mx-auto"
-                :stroke-width="1.5"
-              />
-              <p class="text-ink mt-2 text-xs font-bold">{{ tag.label }}</p>
-              <p class="text-ink-muted mt-1 text-[11px] leading-snug">{{ tag.desc }}</p>
-            </div>
-          </div>
-
-          <p class="text-ink mt-4 text-sm font-semibold">주요 소비 행동 분석</p>
-          <div class="divide-line mt-1 divide-y">
-            <div
-              v-for="b in behaviorSummary"
-              :key="b.label"
-              class="flex items-center gap-3 py-3"
-            >
-              <span class="flex-1">
-                <span class="text-ink block text-sm font-semibold">{{ b.label }}</span>
-                <span class="text-ink-muted block text-xs">{{ b.desc }}</span>
-              </span>
               <span
-                class="rounded-lg px-2.5 py-1 text-xs font-bold"
-                :class="
-                  b.tone === 'sustain'
-                    ? 'text-verdict-sustain bg-verdict-sustain/10'
-                    : 'text-verdict-adjust bg-verdict-adjust/10'
-                "
+                class="flex size-9 shrink-0 items-center justify-center rounded-[18px]"
+                :class="tag.iconClass"
               >
-                {{ b.verdict }}
+                <component
+                  :is="tag.icon"
+                  :size="20"
+                  :stroke-width="1.7"
+                />
+              </span>
+              <p class="text-ink w-full whitespace-nowrap text-center text-xs font-bold">
+                {{ tag.label }}
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-line h-px w-full" />
+
+          <h3 class="text-ink text-base font-bold">주요 소비 행동 분석</h3>
+
+          <div class="flex flex-col gap-3">
+            <div
+              v-for="behavior in behaviorSummary"
+              :key="behavior.label"
+              class="border-line flex items-center justify-between border-b pb-3"
+            >
+              <div class="flex min-w-0 items-center gap-3">
+                <span
+                  class="flex size-9 shrink-0 items-center justify-center rounded-[18px]"
+                  :class="behavior.iconClass"
+                >
+                  <component
+                    :is="behavior.icon"
+                    :size="18"
+                    :stroke-width="1.7"
+                  />
+                </span>
+                <span class="min-w-0">
+                  <strong class="text-ink block text-sm">{{ behavior.label }}</strong>
+                  <span class="text-ink-faint mt-0.5 block truncate text-[11px]">
+                    {{ behavior.desc }}
+                  </span>
+                </span>
+              </div>
+              <span
+                class="ml-2 shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold"
+                :class="behavior.tagClass"
+              >
+                {{ behavior.verdict }}
               </span>
             </div>
           </div>
-        </div>
 
-        <div class="ml-10">
           <PrimaryButton
             arrow
+            class="h-[52px] rounded-2xl text-base font-bold"
             @click="router.push('/map')"
-            >만족도 지도 보기</PrimaryButton
           >
-        </div>
+            만족도 지도 보기
+          </PrimaryButton>
+        </section>
       </template>
-
       <template v-else-if="step === 'qna'">
         <ChatQuickReplies
           :options="[

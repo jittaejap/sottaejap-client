@@ -48,7 +48,7 @@ export const VERDICT_SOFT_BG_CLASS: Record<VerdictTone, string> = {
 export const VERDICT_BADGE: Record<VerdictTone, string | null> = {
   sustain: '지켜요',
   adjust: '바꿔볼까요',
-  pending: null,
+  pending: '아직 판단하기 일러요',
 }
 
 /**
@@ -56,9 +56,43 @@ export const VERDICT_BADGE: Record<VerdictTone, string | null> = {
  * 문구는 표시용일 뿐이고 색을 정하는 데 쓰지 않는다 (FR-07-02).
  */
 export const PRESCRIPTION_LABEL = {
-  PROTECT: 'Awesome!!',
+  PROTECT: 'Awesome!',
   KEEP: 'Great!',
   MINOR: 'Umm...',
-  PRIORITY: 'Hmm!',
+  PRIORITY: 'Hmm...!',
   PENDING: '아직 판단하기 일러요',
 } as const
+
+export type QuadrantTone = 'awesome' | 'great' | 'umm' | 'hmm' | 'pending'
+
+export function quadrantTone(point: SatisfactionMapPoint): QuadrantTone {
+  if (point.evaluationStatus === 'PENDING' || point.quadrant === null) return 'pending'
+  if (point.quadrant === 'PROTECT') return 'awesome'
+  if (point.quadrant === 'KEEP') return 'great'
+  if (point.quadrant === 'MINOR') return 'umm'
+  return 'hmm'
+}
+
+export const QUADRANT_COLOR_VAR: Record<QuadrantTone, string> = {
+  awesome: '--color-map-awesome',
+  great: '--color-map-great',
+  umm: '--color-map-umm',
+  hmm: '--color-map-hmm',
+  pending: '--color-verdict-pending',
+}
+
+export const QUADRANT_OPACITY: Record<QuadrantTone, number> = {
+  awesome: 1,
+  great: 1,
+  umm: 1,
+  hmm: 1,
+  pending: 0.45,
+}
+
+export const QUADRANT_DOT_CLASS: Record<QuadrantTone, string> = {
+  awesome: 'bg-map-awesome',
+  great: 'bg-map-great',
+  umm: 'bg-map-umm',
+  hmm: 'bg-map-hmm',
+  pending: 'bg-verdict-pending/50',
+}

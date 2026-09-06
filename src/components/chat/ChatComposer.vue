@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { IconChartBar, IconPencil, IconQuestionMark, IconSend } from '@tabler/icons-vue'
+import { IconArrowUp, IconChartBar, IconPencil, IconQuestionMark } from '@tabler/icons-vue'
+
+withDefaults(defineProps<{ shortcuts?: boolean }>(), { shortcuts: true })
 
 const emit = defineEmits<{
   send: [text: string]
@@ -18,11 +20,14 @@ function send() {
 </script>
 
 <template>
-  <div class="border-line bg-surface shrink-0 space-y-2 border-t px-4 py-3">
-    <div class="flex gap-2">
+  <div class="border-line bg-surface shrink-0 space-y-2 border-t px-4 pt-3 pb-2">
+    <div
+      v-if="shortcuts"
+      class="flex gap-2"
+    >
       <button
         type="button"
-        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-xl border py-2 text-xs font-medium"
+        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
         @click="emit('shortcut', 'retrospect')"
       >
         <IconPencil
@@ -33,7 +38,7 @@ function send() {
       </button>
       <button
         type="button"
-        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-xl border py-2 text-xs font-medium"
+        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
         @click="emit('shortcut', 'analysis')"
       >
         <IconChartBar
@@ -44,7 +49,7 @@ function send() {
       </button>
       <button
         type="button"
-        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-xl border py-2 text-xs font-medium"
+        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
         @click="emit('shortcut', 'qna')"
       >
         <IconQuestionMark
@@ -54,21 +59,23 @@ function send() {
         금융 Q&A
       </button>
     </div>
-    <div class="bg-surface-muted flex items-center gap-2 rounded-full py-1.5 pr-1.5 pl-4">
+    <div
+      class="border-line bg-surface flex items-center gap-2 rounded-full border py-1.5 pr-1.5 pl-4"
+    >
       <input
         v-model="draft"
         type="text"
-        placeholder="AI에게 메시지를 입력하세요..."
+        placeholder="메시지를 입력하세요..."
         class="text-ink placeholder:text-ink-faint flex-1 bg-transparent text-sm outline-none"
         @keyup.enter="send"
       />
       <button
         type="button"
-        class="bg-brand text-surface flex size-9 shrink-0 items-center justify-center rounded-full"
+        class="bg-brand text-surface flex size-8 shrink-0 items-center justify-center rounded-full"
         aria-label="보내기"
         @click="send"
       >
-        <IconSend :size="17" />
+        <IconArrowUp :size="16" />
       </button>
     </div>
   </div>

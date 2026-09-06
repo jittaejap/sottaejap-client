@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { IconChartPie2, IconHome2, IconListDetails, IconMessageCircle2 } from '@tabler/icons-vue'
+import { IconChartDots, IconHome2, IconListDetails, IconMessageCircle2 } from '@tabler/icons-vue'
 
 const route = useRoute()
 
 const tabs = [
   { name: 'home', to: '/', label: '홈', icon: IconHome2 },
   { name: 'chat', to: '/chat', label: 'AI채팅', icon: IconMessageCircle2 },
-  { name: 'map', to: '/map', label: '분석', icon: IconChartPie2 },
+  { name: 'map', to: '/map', label: '지도', icon: IconChartDots },
   { name: 'transactions', to: '/transactions', label: '거래내역', icon: IconListDetails },
 ] as const
 </script>
