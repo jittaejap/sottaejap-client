@@ -10,8 +10,6 @@ import {
   IconDiamond,
   IconGift,
   IconMoonStars,
-  IconPencil,
-  IconQuestionMark,
   IconRepeat,
   IconSearch,
   IconShieldLock,
@@ -26,6 +24,11 @@ import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
 import ChatBubble from '@/components/chat/ChatBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
+import aiAvatarImage from '@/assets/images/ai/01_main_wave_hat.png'
+import aiSmallAvatarImage from '@/assets/images/ai/02_wave_small_hat.png'
+import retrospectImage from '@/assets/images/ai/03_tablet_chat_hat.png'
+import analysisImage from '@/assets/images/ai/09_search_hat.png'
+import qnaImage from '@/assets/images/ai/06_idea_hat.png'
 
 const router = useRouter()
 
@@ -315,31 +318,55 @@ function confirmAllocate() {
 <template>
   <div class="flex h-full flex-col">
     <AppTopBar
-      title="AI채팅"
+      title="AI 채팅"
       bell
       bell-dot
     />
 
     <main
       ref="thread"
-      class="flex-1 space-y-3 overflow-y-auto px-4 pb-4"
+      class="bg-surface flex-1 space-y-4 overflow-y-auto p-4"
     >
       <div
         v-if="history.length === 0"
-        class="bg-brand/5 flex items-center gap-3 rounded-2xl p-4"
+        class="space-y-4"
       >
-        <div class="flex-1">
-          <p class="text-ink font-bold">안녕하세요!<br />AI 소때잡 비서예요.</p>
-          <p class="text-ink-muted mt-2 text-sm leading-relaxed">
-            소비를 똑똑하게 관리할 수 있도록<br />제가 함께 도와드릴게요.
-          </p>
+        <div class="flex items-start gap-2">
+          <span
+            class="bg-brand-soft flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full"
+            ><img
+              :src="aiAvatarImage"
+              alt=""
+              class="h-[52px] w-[38px] object-cover"
+          /></span>
+          <span class="flex flex-col items-start gap-1">
+            <span
+              class="bg-progress-track text-ink flex w-[260px] flex-col gap-1 rounded-2xl rounded-tl px-3.5 py-3"
+              ><strong class="text-sm">안녕하세요! AI 소때잡 비서예요.</strong
+              ><span class="text-[13px] font-medium leading-5"
+                >내 소비에 맞는 바꿀 타이밍 잡아봐요!<br />무엇을 도와드릴까요?</span
+              ></span
+            >
+            <span class="text-ink-faint text-[11px]">오전 9:41</span>
+          </span>
         </div>
-        <span
-          class="bg-surface flex size-16 shrink-0 items-center justify-center rounded-full text-3xl"
-          >🐮</span
-        >
+        <div class="flex items-start gap-2">
+          <span
+            class="bg-brand-soft flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full"
+            ><img
+              :src="aiSmallAvatarImage"
+              alt=""
+              class="size-[45px] rounded-[18px] object-cover"
+          /></span>
+          <span class="flex min-w-0 flex-1 flex-col items-start gap-2">
+            <span
+              class="bg-progress-track text-ink w-[260px] rounded-2xl rounded-tl px-3.5 py-3 text-[13px] font-medium leading-5"
+              >원하는 기능을 누르거나 아래 채팅창에 바로 입력해도 돼요.</span
+            >
+            <span class="text-ink-faint text-[11px]">오전 9:41</span>
+          </span>
+        </div>
       </div>
-
       <template
         v-for="(entry, index) in history"
         :key="index"
@@ -348,76 +375,92 @@ function confirmAllocate() {
       </template>
 
       <template v-if="step === 'menu'">
-        <div class="pt-2">
-          <p class="text-ink font-bold">무엇을 도와드릴까요?</p>
-          <p class="text-ink-muted mt-1 text-sm">필요한 기능을 빠르게 선택하실 수 있어요.</p>
-        </div>
+        <p class="sr-only">무엇을 도와드릴까요?</p>
         <button
           type="button"
-          class="border-line flex w-full items-center gap-3 rounded-2xl border p-4 text-left"
+          class="sr-only"
           @click="startRetrospect"
         >
-          <span class="bg-brand/10 flex size-11 shrink-0 items-center justify-center rounded-full">
-            <IconPencil
-              :size="20"
-              class="text-brand"
-            />
-          </span>
-          <span class="flex-1">
-            <span class="text-ink block font-semibold">회고 등록</span>
-            <span class="text-ink-muted block text-xs">최근 소비 중 돌아볼 거래를 찾아볼게요.</span>
-          </span>
-          <IconChevronRight
-            :size="18"
-            class="text-ink-muted"
-          />
+          회고 등록
         </button>
-        <button
-          type="button"
-          class="border-line flex w-full items-center gap-3 rounded-2xl border p-4 text-left"
-          @click="startAnalysis"
-        >
-          <span class="bg-brand/10 flex size-11 shrink-0 items-center justify-center rounded-full">
-            <IconChartBar
-              :size="20"
-              class="text-brand"
-            />
-          </span>
-          <span class="flex-1">
-            <span class="text-ink block font-semibold">소비 분석</span>
-            <span class="text-ink-muted block text-xs"
-              >이번 달 소비 패턴을 분석하고 만족도 지도를 확인해요.</span
+        <div class="ml-16 flex flex-col gap-2">
+          <button
+            type="button"
+            class="border-line bg-surface flex min-h-[83px] w-full items-center gap-3 rounded-xl border p-3.5 text-left"
+            @click="startRetrospect"
+          >
+            <span
+              class="bg-brand-soft flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full"
             >
-          </span>
-          <IconChevronRight
-            :size="18"
-            class="text-ink-muted"
-          />
-        </button>
-        <button
-          type="button"
-          class="border-line flex w-full items-center gap-3 rounded-2xl border p-4 text-left"
-          @click="startQna"
-        >
-          <span class="bg-brand/10 flex size-11 shrink-0 items-center justify-center rounded-full">
-            <IconQuestionMark
-              :size="20"
-              class="text-brand"
-            />
-          </span>
-          <span class="flex-1">
-            <span class="text-ink block font-semibold">금융 지식 Q&A</span>
-            <span class="text-ink-muted block text-xs"
-              >금융에 대해 궁금한 점을 질문하고 쉽게 답을 받아보세요.</span
+              <img
+                :src="retrospectImage"
+                alt=""
+                class="size-[35px] object-contain"
+              />
+            </span>
+            <span class="min-w-0 flex-1"
+              ><strong class="text-ink block text-[15px]">회고 등록</strong
+              ><span class="text-ink-faint mt-0.5 block text-[13px] leading-[1.3]"
+                >최근 소비 중 돌아볼 거래를 찾아볼게요.</span
+              ></span
             >
-          </span>
-          <IconChevronRight
-            :size="18"
-            class="text-ink-muted"
-          />
-        </button>
+            <IconChevronRight
+              :size="16"
+              class="text-ink-faint shrink-0"
+            />
+          </button>
+          <button
+            type="button"
+            class="border-line bg-surface flex min-h-[83px] w-full items-center gap-3 rounded-xl border p-3.5 text-left"
+            @click="startAnalysis"
+          >
+            <span
+              class="bg-brand-soft flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full"
+            >
+              <img
+                :src="analysisImage"
+                alt=""
+                class="size-[35px] object-contain"
+              />
+            </span>
+            <span class="min-w-0 flex-1"
+              ><strong class="text-ink block text-[15px]">소비 분석</strong
+              ><span class="text-ink-faint mt-0.5 block text-[13px] leading-[1.3]"
+                >이번 달 소비 패턴을 분석하고 만족도 지도를 확인해요.</span
+              ></span
+            >
+            <IconChevronRight
+              :size="16"
+              class="text-ink-faint shrink-0"
+            />
+          </button>
+          <button
+            type="button"
+            class="border-line bg-surface flex min-h-[83px] w-full items-center gap-3 rounded-xl border p-3.5 text-left"
+            @click="startQna"
+          >
+            <span
+              class="bg-brand-soft flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full"
+            >
+              <img
+                :src="qnaImage"
+                alt=""
+                class="size-[35px] object-contain"
+              />
+            </span>
+            <span class="min-w-0 flex-1"
+              ><strong class="text-ink block text-[15px]">금융 지식 Q&amp;A</strong
+              ><span class="text-ink-faint mt-0.5 block text-[13px] leading-[1.3]"
+                >금융에 대해 궁금한 점을 질문하고 쉽게 답을 받아보세요.</span
+              ></span
+            >
+            <IconChevronRight
+              :size="16"
+              class="text-ink-faint shrink-0"
+            />
+          </button>
+        </div>
       </template>
-
       <template v-else-if="step === 'candidate'">
         <ChatBubble role="ai">
           <p class="font-semibold">AI가 선정한 회고예요 📌</p>
@@ -875,6 +918,7 @@ function confirmAllocate() {
     </main>
 
     <ChatComposer
+      :shortcuts="step !== 'menu'"
       @send="onSend"
       @shortcut="onShortcut"
     />
