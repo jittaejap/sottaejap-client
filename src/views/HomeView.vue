@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  IconBeach,
   IconBell,
   IconChevronRight,
   IconCoins,
+  IconCoffee,
+  IconCar,
+  IconMoped,
   IconCrown,
   IconMoodAnnoyed,
   IconMoodX,
@@ -29,7 +31,7 @@ const subview = ref<'dashboard' | 'goal' | 'savings'>('dashboard')
 
 const goal = {
   label: '여행 자금',
-  sub: '여행 경비 마련',
+  sub: '여행 자금 마련',
   percent: 31,
   saved: 310_000,
   target: 1_000_000,
@@ -38,9 +40,9 @@ const goal = {
 }
 
 const savingsActions = [
-  { label: '심야 배달 감소', amount: 46_000, behavior: '심야 배달' },
-  { label: '카페 감소', amount: 12_000, behavior: '카페' },
-  { label: '택시 감소', amount: 11_000, behavior: '택시' },
+  { label: '심야 배달 줄이기', amount: 46_000, behavior: '심야 배달', icon: IconMoped },
+  { label: '카페 이용 줄이기', amount: 12_000, behavior: '카페', icon: IconCoffee },
+  { label: '택시 이용 줄이기', amount: 11_000, behavior: '택시', icon: IconCar },
 ]
 
 const weeklyTrend = [19_000, 24_000, 17_000, 31_000, 28_000, 35_000, 46_000]
@@ -131,6 +133,7 @@ function openBehavior(behavior: string) {
     </header>
     <AppTopBar
       v-else-if="subview === 'goal'"
+      title="목표 상세"
       bell
       :back-handler="() => (subview = 'dashboard')"
     />
@@ -274,120 +277,87 @@ function openBehavior(behavior: string) {
         </section>
       </template>
       <template v-else-if="subview === 'goal'">
-        <div class="flex items-center gap-3">
-          <span
-            class="bg-surface-muted flex size-14 shrink-0 items-center justify-center rounded-2xl"
+        <div class="flex items-center gap-3 py-2">
+          <img
+            :src="goalTravelImage"
+            alt="여행 자금"
+            class="h-[55px] w-[70px] shrink-0 rounded-3xl object-cover"
+          />
+          <p class="text-ink text-base font-bold">{{ goal.sub }}</p>
+        </div>
+        <div class="border-line bg-surface flex items-center gap-3.5 rounded-[20px] border p-3.5">
+          <div
+            class="relative flex size-[90px] shrink-0 items-center justify-center rounded-full"
+            :style="{
+              background:
+                'conic-gradient(var(--color-brand) ' +
+                goal.percent * 3.6 +
+                'deg, var(--color-line) 0deg)',
+            }"
           >
-            <IconBeach
-              :size="28"
-              class="text-brand"
-              :stroke-width="1.5"
-            />
-          </span>
-          <div>
-            <p class="text-ink text-lg font-bold">{{ goal.label }}</p>
-            <p class="text-ink-muted text-sm">{{ goal.sub }}</p>
-          </div>
-        </div>
-
-        <AppCard>
-          <div class="flex items-center gap-6">
             <div
-              class="relative flex size-24 shrink-0 items-center justify-center rounded-full"
-              :style="{
-                background: `conic-gradient(var(--color-brand) ${goal.percent * 3.6}deg, var(--color-surface-muted) 0deg)`,
-              }"
+              class="bg-surface absolute inset-[9px] flex items-center justify-center rounded-full"
             >
-              <div
-                class="bg-surface absolute inset-2 flex items-center justify-center rounded-full"
-              >
-                <span class="text-ink text-xl font-extrabold">{{ goal.percent }}%</span>
-              </div>
-            </div>
-            <div>
-              <p class="text-ink-muted text-sm">모은 금액</p>
-              <p class="text-ink text-2xl font-extrabold">
-                {{ goal.saved.toLocaleString('ko-KR') }}원
-              </p>
-              <p class="text-ink-muted text-sm">/ {{ goal.target.toLocaleString('ko-KR') }}원</p>
+              <span class="text-ink text-lg font-black">{{ goal.percent }}%</span>
             </div>
           </div>
-        </AppCard>
-
-        <div
-          class="divide-line border-line grid grid-cols-3 divide-x rounded-2xl border py-3 text-center"
-        >
-          <div>
-            <p class="text-ink-muted text-xs">목표 금액</p>
-            <p class="text-ink mt-1 text-sm font-bold">
-              {{ goal.target.toLocaleString('ko-KR') }}원
-            </p>
-          </div>
-          <div>
-            <p class="text-ink-muted text-xs">목표 기간</p>
-            <p class="text-ink mt-1 text-sm font-bold">{{ goal.dueDate }}</p>
-          </div>
-          <div>
-            <p class="text-ink-muted text-xs">남은 기간</p>
-            <p class="text-ink mt-1 text-sm font-bold">{{ goal.daysLeft }}일</p>
+          <div class="flex flex-col gap-1">
+            <p class="text-ink-faint text-[11px] font-medium">모은 금액</p>
+            <p class="text-ink text-xl font-bold">{{ goal.saved.toLocaleString('ko-KR') }}원</p>
+            <p class="text-ink-faint text-[11px]">/ {{ goal.target.toLocaleString('ko-KR') }}원</p>
           </div>
         </div>
-
-        <AppCard>
-          <p class="text-ink text-sm font-semibold">AI 추천이 만든 변화</p>
-          <div class="mt-3 grid grid-cols-2 gap-3">
-            <div class="bg-surface-muted rounded-xl p-3">
-              <p class="text-ink-muted text-xs">추천 전 예상 달성률</p>
-              <p class="text-ink text-lg font-bold">18%</p>
-              <div class="mt-2 flex h-8 items-end gap-1">
-                <div
-                  v-for="h in [30, 45, 35, 55, 40]"
-                  :key="h"
-                  class="bg-ink-faint w-2 rounded-sm"
-                  :style="{ height: h + '%' }"
-                ></div>
-              </div>
-            </div>
-            <div class="bg-brand/10 rounded-xl p-3">
-              <p class="text-brand text-xs">추천 후 예상 달성률</p>
-              <p class="text-brand text-lg font-bold">31%</p>
-              <div class="mt-2 flex h-8 items-end gap-1">
-                <div
-                  v-for="h in [35, 50, 65, 75, 95]"
-                  :key="h"
-                  class="bg-brand w-2 rounded-sm"
-                  :style="{ height: h + '%' }"
-                ></div>
-              </div>
-            </div>
+        <div
+          class="divide-line border-line grid grid-cols-3 divide-x rounded-2xl border px-4 py-2.5 text-center"
+        >
+          <div class="flex flex-col gap-1">
+            <p class="text-ink-faint text-[10px]">목표 금액</p>
+            <p class="text-ink text-xs font-bold">{{ goal.target.toLocaleString('ko-KR') }}원</p>
           </div>
-        </AppCard>
-
-        <div>
-          <p class="text-ink mb-2 text-sm font-semibold">절약을 이끄는 행동</p>
-          <div class="divide-line border-line divide-y rounded-2xl border">
+          <div class="flex flex-col gap-1">
+            <p class="text-ink-faint text-[10px]">목표 기간</p>
+            <p class="text-ink text-xs font-bold">{{ goal.dueDate }}</p>
+          </div>
+          <div class="flex flex-col gap-1">
+            <p class="text-ink-faint text-[10px]">남은 기간</p>
+            <p class="text-brand text-xs font-bold">{{ goal.daysLeft }}일</p>
+          </div>
+        </div>
+        <section class="pt-2">
+          <div class="mb-2">
+            <h2 class="text-ink text-sm font-bold">AI가 찾은 절약 가능 항목</h2>
+            <p class="text-ink-faint mt-0.5 text-[11px]">이렇게 소비를 줄이면 아낄 수 있어요.</p>
+          </div>
+          <div class="divide-line border-line divide-y overflow-hidden rounded-[20px] border py-1">
             <button
               v-for="a in savingsActions"
               :key="a.label"
               type="button"
-              class="flex w-full items-center justify-between px-4 py-3.5"
+              class="flex h-14 w-full items-center justify-between px-4"
               @click="openBehavior(a.behavior)"
             >
-              <span class="text-ink text-sm font-medium">{{ a.label }}</span>
+              <span class="flex items-center gap-3">
+                <span class="bg-brand-soft flex size-9 items-center justify-center rounded-full"
+                  ><component
+                    :is="a.icon"
+                    :size="18"
+                    class="text-brand"
+                /></span>
+                <span class="text-ink text-[13px] font-semibold">{{ a.label }}</span>
+              </span>
               <span class="flex items-center gap-1">
-                <span class="text-satisfaction-high text-sm font-bold"
-                  >+{{ a.amount.toLocaleString('ko-KR') }}원</span
+                <span class="text-success text-[13px] font-semibold"
+                  >월 {{ a.amount.toLocaleString('ko-KR') }}원 절약 가능</span
                 >
                 <IconChevronRight
-                  :size="15"
-                  class="text-ink-muted"
+                  :size="16"
+                  class="text-ink-faint"
                 />
               </span>
             </button>
           </div>
-        </div>
+        </section>
       </template>
-
       <template v-else>
         <h1 class="text-ink text-xl font-bold">절감액 상세</h1>
 
