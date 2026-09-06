@@ -3,8 +3,8 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IconBell,
+  IconBurger,
   IconChevronRight,
-  IconCoins,
   IconCoffee,
   IconCar,
   IconMoped,
@@ -23,6 +23,7 @@ import WeeklyTrendChart from '@/components/common/WeeklyTrendChart.vue'
 import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
 import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
 import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
+import savingsImage from '@/assets/images/절감액이미지 .png'
 import { useMapStore } from '@/stores/map'
 
 const router = useRouter()
@@ -48,9 +49,9 @@ const savingsActions = [
 const weeklyTrend = [19_000, 24_000, 17_000, 31_000, 28_000, 35_000, 46_000]
 const weeklyLabels = ['3월', '4월', '5월', '6월', '7월', '8월', '9월']
 const topCategories = [
-  { label: '외식/배달', amount: 21_000 },
-  { label: '카페/간식', amount: 13_000 },
-  { label: '교통', amount: 12_000 },
+  { label: '외식/배달', amount: 21_000, icon: IconBurger },
+  { label: '카페/간식', amount: 13_000, icon: IconCoffee },
+  { label: '교통', amount: 12_000, icon: IconCar },
 ]
 
 const quadrantCounts = computed(() => {
@@ -139,6 +140,7 @@ function openBehavior(behavior: string) {
     />
     <AppTopBar
       v-else
+      title="절감액 상세"
       :back-handler="() => (subview = 'dashboard')"
     />
 
@@ -374,15 +376,11 @@ function openBehavior(behavior: string) {
                 전월 대비 +12%
               </span>
             </div>
-            <span
-              class="bg-surface-muted flex size-16 shrink-0 items-center justify-center rounded-full"
-            >
-              <IconCoins
-                :size="30"
-                class="text-brand"
-                :stroke-width="1.5"
-              />
-            </span>
+            <img
+              :src="savingsImage"
+              alt="절감액"
+              class="h-[100px] w-[150px] shrink-0 rounded-2xl object-cover"
+            />
           </div>
         </AppCard>
 
@@ -403,7 +401,16 @@ function openBehavior(behavior: string) {
               type="button"
               class="flex w-full items-center justify-between px-4 py-3.5"
             >
-              <span class="text-ink text-sm font-medium">{{ c.label }}</span>
+              <span class="flex items-center gap-3">
+                <span class="bg-brand-soft flex size-8 items-center justify-center rounded-lg">
+                  <component
+                    :is="c.icon"
+                    :size="18"
+                    class="text-brand"
+                  />
+                </span>
+                <span class="text-ink text-sm font-bold">{{ c.label }}</span>
+              </span>
               <span class="flex items-center gap-1">
                 <span class="text-ink text-sm font-bold"
                   >{{ c.amount.toLocaleString('ko-KR') }}원</span
