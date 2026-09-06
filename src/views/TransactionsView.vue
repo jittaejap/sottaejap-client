@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue'
 import {
-  IconCheck,
   IconChevronDown,
   IconChevronRight,
   IconCircleCheck,
-  IconCreditCard,
   IconMoodSad,
   IconMoodSmile,
   IconQuestionMark,
@@ -23,11 +21,6 @@ import PrimaryButton from '@/components/common/PrimaryButton.vue'
 const tabs = ['거래내역', '추가 업로드', '회고 이력'] as const
 const tab = ref<(typeof tabs)[number]>('거래내역')
 
-const issuers: { value: CardIssuer; label: string }[] = [
-  { value: 'KB', label: 'KB국민카드' },
-  { value: 'HANA', label: '하나카드' },
-  { value: 'SHINHAN', label: '신한카드' },
-]
 const issuerLabels: Record<CardIssuer, string> = {
   KB: 'KB국민카드',
   HANA: '하나카드',
@@ -90,7 +83,6 @@ const filteredTransactions = computed(() =>
   }),
 )
 
-const selectedIssuer = ref<CardIssuer>('KB')
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
 const fileError = ref('')
@@ -329,36 +321,7 @@ const retrospectHistory = [
 
       <template v-else-if="tab === '추가 업로드'">
         <div class="space-y-2">
-          <p class="text-ink text-sm font-semibold">1. 카드사 선택</p>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="issuer in issuers"
-              :key="issuer.value"
-              type="button"
-              class="relative flex flex-col items-center gap-2 rounded-2xl border py-4"
-              :class="selectedIssuer === issuer.value ? 'border-brand' : 'border-line'"
-              @click="selectedIssuer = issuer.value"
-            >
-              <span
-                v-if="selectedIssuer === issuer.value"
-                class="bg-brand text-surface absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full"
-              >
-                <IconCheck
-                  :size="10"
-                  :stroke-width="3"
-                />
-              </span>
-              <IconCreditCard
-                :size="24"
-                class="text-brand"
-              />
-              <span class="text-ink text-xs font-semibold">{{ issuer.label }}</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <p class="text-ink text-sm font-semibold">2. 파일 업로드</p>
+          <p class="text-ink text-sm font-semibold">1. 파일 업로드</p>
           <div
             class="border-line rounded-2xl border border-dashed px-4 py-8 text-center"
             @dragover.prevent
@@ -427,7 +390,7 @@ const retrospectHistory = [
           class="space-y-2"
         >
           <div class="flex items-center justify-between">
-            <p class="text-ink text-sm font-semibold">3. 파싱 결과 확인</p>
+            <p class="text-ink text-sm font-semibold">2. 파싱 결과 확인</p>
             <span
               class="text-satisfaction-high bg-satisfaction-high/10 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
             >
