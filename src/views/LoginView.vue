@@ -46,7 +46,7 @@ function startDemo() {
         @click="startDemo"
       >
         <IconUserCircle :size="21" />
-        체험 계정으로 시작하기
+        데모 계정으로 시작하기
       </button>
     </div>
 
