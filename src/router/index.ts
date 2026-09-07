@@ -18,6 +18,21 @@ export const routes = [
   }, // 3-4
   { path: '/me', name: 'me', component: () => import('@/views/MyPageView.vue') }, // 4MP
   {
+    path: '/me/budget',
+    name: 'budget-settings',
+    component: () => import('@/views/BudgetSettingsView.vue'),
+  }, // Screen 24 — IA 문서 반영 대기
+  {
+    path: '/me/goals',
+    name: 'goal-settings',
+    component: () => import('@/views/GoalSettingsView.vue'),
+  }, // Screen 25 — IA 문서 반영 대기
+  {
+    path: '/me/analysis-settings',
+    name: 'analysis-settings',
+    component: () => import('@/views/AnalysisSettingsView.vue'),
+  }, // Screen 26 — IA 문서 반영 대기
+  {
     path: '/notifications',
     name: 'notifications',
     component: () => import('@/views/NotificationView.vue'),
