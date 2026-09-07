@@ -237,90 +237,96 @@ function selectPoint(behaviorId: number) {
 
     <main class="flex-1 space-y-4 overflow-y-auto px-4 pb-6">
       <template v-if="subview === 'map'">
-        <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            class="rounded-full border px-3 py-1.5 text-xs font-medium"
-            :class="
-              filter === '전체'
-                ? 'border-brand bg-brand text-surface'
-                : 'border-line text-ink-muted'
-            "
-            @click="filter = '전체'"
-          >
-            전체
-          </button>
-          <button
-            v-for="p in points"
-            :key="p.behaviorId"
-            type="button"
-            class="rounded-full border px-3 py-1.5 text-xs font-medium"
-            :class="filter === p.name ? 'border-brand text-brand' : 'border-line text-ink-muted'"
-            @click="((filter = p.name), selectPoint(p.behaviorId))"
-          >
-            {{ p.name }}
-          </button>
-        </div>
+        <p class="text-ink text-lg font-bold">만족도와 지출 부담을 함께 확인해보세요</p>
 
-        <div class="border-line relative rounded-2xl border p-3">
-          <div
-            class="pointer-events-none absolute top-5 right-6 left-9 z-10 flex justify-between text-xs font-bold"
-          >
-            <span class="text-map-awesome flex items-center gap-1">
-              <IconCrown
-                :size="17"
-                :stroke-width="2.5"
-              />
-              {{ PRESCRIPTION_LABEL.PROTECT }}
-            </span>
-            <span class="text-map-great flex items-center gap-1">
-              <IconThumbUp
-                :size="17"
-                :stroke-width="2.5"
-              />
-              {{ PRESCRIPTION_LABEL.KEEP }}
-            </span>
-          </div>
-          <div
-            class="pointer-events-none absolute right-6 bottom-11 left-9 z-10 flex justify-between text-xs font-bold"
-          >
-            <span class="text-map-umm flex items-center gap-1">
-              <IconMoodNeutral
-                :size="17"
-                :stroke-width="2.5"
-              />
-              {{ PRESCRIPTION_LABEL.MINOR }}
-            </span>
-            <span class="text-map-hmm flex items-center gap-1">
-              <IconCircleX
-                :size="17"
-                :stroke-width="2.5"
-              />
-              {{ PRESCRIPTION_LABEL.PRIORITY }}
-            </span>
-          </div>
-
-          <div class="flex">
-            <div
-              class="text-ink-muted flex w-4 shrink-0 flex-col items-center justify-between py-2 text-[11px]"
+        <div class="border-line rounded-2xl border p-3">
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-full border px-3 py-1.5 text-xs font-medium"
+              :class="
+                filter === '전체'
+                  ? 'border-brand bg-brand text-surface'
+                  : 'border-line text-ink-muted'
+              "
+              @click="filter = '전체'"
             >
-              <span>높음</span>
-              <span class="[writing-mode:vertical-rl] font-medium">{{ mockMap.axisY.label }}</span>
-              <span>낮음</span>
-            </div>
-            <SatisfactionScatter
-              class="min-w-0 flex-1"
-              :points="visiblePoints"
-              :boundaries="mockMap.boundaries"
-              :selected-id="selectedId"
-              @select="selectPoint"
-            />
+              전체
+            </button>
+            <button
+              v-for="p in points"
+              :key="p.behaviorId"
+              type="button"
+              class="rounded-full border px-3 py-1.5 text-xs font-medium"
+              :class="filter === p.name ? 'border-brand text-brand' : 'border-line text-ink-muted'"
+              @click="((filter = p.name), selectPoint(p.behaviorId))"
+            >
+              {{ p.name }}
+            </button>
           </div>
 
-          <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
-            <span>낮음</span>
-            <span class="font-medium">{{ mockMap.axisX.label }}</span>
-            <span>높음</span>
+          <div class="border-line relative mt-4 border-t pt-4">
+            <div
+              class="pointer-events-none absolute top-5 right-6 left-9 z-10 flex justify-between text-xs font-bold"
+            >
+              <span class="text-map-awesome flex items-center gap-1">
+                <IconCrown
+                  :size="17"
+                  :stroke-width="2.5"
+                />
+                {{ PRESCRIPTION_LABEL.PROTECT }}
+              </span>
+              <span class="text-map-great flex items-center gap-1">
+                <IconThumbUp
+                  :size="17"
+                  :stroke-width="2.5"
+                />
+                {{ PRESCRIPTION_LABEL.KEEP }}
+              </span>
+            </div>
+            <div
+              class="pointer-events-none absolute right-6 bottom-11 left-9 z-10 flex justify-between text-xs font-bold"
+            >
+              <span class="text-map-umm flex items-center gap-1">
+                <IconMoodNeutral
+                  :size="17"
+                  :stroke-width="2.5"
+                />
+                {{ PRESCRIPTION_LABEL.MINOR }}
+              </span>
+              <span class="text-map-hmm flex items-center gap-1">
+                <IconCircleX
+                  :size="17"
+                  :stroke-width="2.5"
+                />
+                {{ PRESCRIPTION_LABEL.PRIORITY }}
+              </span>
+            </div>
+
+            <div class="flex">
+              <div
+                class="text-ink-muted flex w-4 shrink-0 flex-col items-center justify-between py-2 text-[11px]"
+              >
+                <span>높음</span>
+                <span class="[writing-mode:vertical-rl] font-medium">{{
+                  mockMap.axisY.label
+                }}</span>
+                <span>낮음</span>
+              </div>
+              <SatisfactionScatter
+                class="min-w-0 flex-1"
+                :points="visiblePoints"
+                :boundaries="mockMap.boundaries"
+                :selected-id="selectedId"
+                @select="selectPoint"
+              />
+            </div>
+
+            <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
+              <span>낮음</span>
+              <span class="font-medium">{{ mockMap.axisX.label }}</span>
+              <span>높음</span>
+            </div>
           </div>
         </div>
 

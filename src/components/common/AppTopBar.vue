@@ -31,7 +31,7 @@ function handleBack() {
 </script>
 
 <template>
-  <header class="flex h-14 shrink-0 items-center justify-between px-4">
+  <header class="flex h-14 shrink-0 items-center px-4">
     <button
       v-if="back"
       type="button"
@@ -48,7 +48,7 @@ function handleBack() {
 
     <h1
       v-if="title"
-      class="text-ink truncate text-base font-semibold"
+      class="text-ink ml-1 min-w-0 flex-1 truncate text-left text-base font-semibold"
     >
       {{ title }}
     </h1>
@@ -57,7 +57,7 @@ function handleBack() {
       class="flex-1"
     ></div>
 
-    <div class="-mr-2 flex items-center gap-1">
+    <div class="-mr-2 ml-auto flex shrink-0 items-center gap-1">
       <RouterLink
         v-if="bell"
         to="/notifications"

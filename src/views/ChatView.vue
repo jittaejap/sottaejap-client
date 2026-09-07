@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   IconBulb,
   IconBurger,
@@ -41,6 +41,7 @@ import cheerAvatar from '@/assets/images/ai/07_cheer_hat.png'
 import thinkingAvatar from '@/assets/images/ai/05_thinking_hat.png'
 import searchAvatar from '@/assets/images/ai/09_search_hat.png'
 
+const route = useRoute()
 const router = useRouter()
 
 type Step =
@@ -57,7 +58,7 @@ type Step =
   | 'analysis'
   | 'qna'
 
-const step = ref<Step>('menu')
+const step = ref<Step>(route.query.step === 'improvement' ? 'improvement' : 'menu')
 const history = ref<{ role: 'ai' | 'user'; text: string; avatar?: string }[]>([])
 const thread = useTemplateRef<HTMLElement>('thread')
 
@@ -594,7 +595,7 @@ function confirmAllocate() {
           </div>
           <div class="flex gap-2">
             <span class="border-brand text-brand rounded-full border px-3 py-1 text-xs font-medium"
-              >최근 30일</span
+              >최근 3일</span
             >
             <button
               type="button"

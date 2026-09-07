@@ -12,6 +12,16 @@ export const routes = [
   { path: '/chat', name: 'chat', component: () => import('@/views/ChatView.vue') }, // 3-2
   { path: '/map', name: 'map', component: () => import('@/views/MapView.vue') }, // 3-3
   {
+    path: '/map/behavior',
+    name: 'behavior-detail',
+    component: () => import('@/views/BehaviorDetailView.vue'),
+  }, // Screen 08 — IA 문서 반영 대기
+  {
+    path: '/map/behavior/reviews',
+    name: 'behavior-reviews',
+    component: () => import('@/views/BehaviorReviewDetailView.vue'),
+  }, // Screen 08-02 — IA 문서 반영 대기
+  {
     path: '/transactions',
     name: 'transactions',
     component: () => import('@/views/TransactionsView.vue'),
