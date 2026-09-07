@@ -98,7 +98,7 @@ const satisfactionPreview = computed(() => [
 ])
 
 function openBehavior(behavior: string) {
-  void router.push({ path: '/map', query: { behavior } })
+  void router.push({ name: 'behavior-detail', query: { behavior } })
 }
 </script>
 

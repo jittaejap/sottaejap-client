@@ -584,9 +584,9 @@ function next() {
           <p class="text-ink-muted text-xs">거래내역을 바탕으로 평균보다 큰 결제를 감지해요.</p>
           <div class="border-brand bg-brand-soft rounded-xl border p-3.5">
             <span class="bg-brand text-surface rounded-md px-2 py-1 text-[10px] font-bold"
-              >AI 추천</span
+              >추천 기준</span
             >
-            <p class="text-ink mt-2 text-xs font-bold">추천 기준: 평균 결제보다 많이 큰 금액</p>
+            <p class="text-ink mt-2 text-xs font-bold">평균 결제보다 많이 큰 금액</p>
             <p class="text-ink-faint mt-1 text-[10px]">
               예: 평균 2~3만원 사용 → 10만원 이상 결제 시 알림
             </p>

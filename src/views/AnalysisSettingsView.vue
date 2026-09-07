@@ -94,7 +94,7 @@ function save() {
           <span class="bg-brand text-surface flex size-8 items-center justify-center rounded-full">
             <IconAdjustments :size="17" />
           </span>
-          <span class="text-brand text-xs font-bold">AI 추천</span>
+          <span class="text-brand text-xs font-bold">추천 기준</span>
         </div>
         <p class="text-ink mt-3 text-sm font-bold">균형 있게 분석하는 기준을 추천해요.</p>
         <p class="text-ink-muted mt-1 text-xs">
