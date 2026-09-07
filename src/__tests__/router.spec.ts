@@ -10,6 +10,8 @@ describe('router', () => {
       '/',
       '/chat',
       '/map',
+      '/map/behavior',
+      '/map/behavior/reviews',
       '/transactions',
       '/me',
       '/me/budget',
