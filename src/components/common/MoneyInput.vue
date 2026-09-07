@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { IconX } from '@tabler/icons-vue'
 
-const props = defineProps<{ modelValue: number }>()
+const props = withDefaults(defineProps<{ modelValue: number; accent?: boolean }>(), {
+  accent: false,
+})
 const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
 
 const formatted = computed(() =>
@@ -16,7 +18,10 @@ function onInput(event: Event) {
 </script>
 
 <template>
-  <div class="border-line bg-surface flex items-center gap-2 rounded-2xl border px-4 py-3.5">
+  <div
+    class="bg-surface flex items-center gap-2 rounded-2xl border px-4 py-3.5"
+    :class="accent ? 'border-brand' : 'border-line'"
+  >
     <span class="text-ink text-lg font-semibold">₩</span>
     <input
       type="text"
