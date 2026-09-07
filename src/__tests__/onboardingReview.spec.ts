@@ -3,6 +3,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { routes } from '@/router'
+import MoneyInput from '@/components/common/MoneyInput.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
 
 async function click(wrapper: VueWrapper, label: string) {
@@ -18,6 +19,27 @@ async function selectUpload(wrapper: VueWrapper) {
 }
 
 describe('온보딩 표본 회고', () => {
+  it('직접 입력 목표에서만 목표명을 받고 9글자와 허용 문자로 제한한다', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+
+    expect(wrapper.find('input[aria-label="목표 이름"]').exists()).toBe(false)
+    expect(wrapper.getComponent(MoneyInput).classes()).toContain('border-brand')
+
+    await click(wrapper, '직접 입력')
+
+    const input = wrapper.get('input[aria-label="목표 이름"]')
+    expect(input.attributes('maxlength')).toBe('9')
+    await input.setValue('여행!@목표123456789')
+
+    expect((input.element as HTMLInputElement).value).toBe('여행목표12345')
+    expect(wrapper.text()).toContain('9/9')
+
+    await click(wrapper, '여행')
+    expect(wrapper.find('input[aria-label="목표 이름"]').exists()).toBe(false)
+  })
   it('거래내역 파일을 선택하면 첨부 정보와 파싱 결과를 표시한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')

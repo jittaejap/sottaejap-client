@@ -28,6 +28,7 @@ const router = useRouter()
 const step = ref(1)
 const totalSteps = 4
 const goalType = ref('TRAVEL')
+const goalName = ref('')
 const goalAmount = ref(3_000_000)
 const goalPeriod = ref(12)
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
@@ -280,9 +281,18 @@ const sensitivityOptions = [
 ] as const
 const canProceed = computed(() => {
   if (step.value === 2) return uploadedFile.value !== null
+  if (step.value === 1 && goalType.value === 'CUSTOM' && goalName.value.trim() === '') return false
   return goalAmount.value > 0 && goalPeriod.value > 0
 })
 
+function onGoalNameInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const sanitized = Array.from(input.value.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s]/g, ''))
+    .slice(0, 9)
+    .join('')
+  goalName.value = sanitized
+  input.value = sanitized
+}
 function next() {
   if (step.value >= totalSteps) return
   step.value += 1
@@ -356,9 +366,34 @@ function next() {
             <span class="text-ink text-[15px] font-bold">{{ goal.label }}</span>
           </button>
         </div>
+        <div
+          v-if="goalType === 'CUSTOM'"
+          class="space-y-2"
+        >
+          <label
+            for="custom-goal-name"
+            class="text-ink-muted text-[13px] font-bold"
+          >
+            목표 이름
+          </label>
+          <input
+            id="custom-goal-name"
+            :value="goalName"
+            type="text"
+            maxlength="9"
+            aria-label="목표 이름"
+            placeholder="예: 자동차 구매"
+            class="border-brand text-ink placeholder:text-ink-faint bg-surface h-[52px] w-full rounded-xl border px-4 text-lg font-bold outline-none placeholder:text-sm placeholder:font-normal"
+            @input="onGoalNameInput"
+          />
+          <p class="text-ink-faint text-right text-[11px]">{{ goalName.length }}/9</p>
+        </div>
         <div class="space-y-2">
           <label class="text-ink-muted text-[13px] font-bold">목표 금액</label>
-          <MoneyInput v-model="goalAmount" />
+          <MoneyInput
+            v-model="goalAmount"
+            accent
+          />
           <div class="flex gap-2">
             <button
               v-for="amount in [100_000, 500_000, 1_000_000]"
