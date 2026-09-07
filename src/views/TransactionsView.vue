@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, inject, ref, useTemplateRef } from 'vue'
+import { routeLocationKey } from 'vue-router'
 import {
-  IconChevronDown,
   IconChevronRight,
   IconCircleCheck,
   IconMoodSad,
@@ -14,10 +14,12 @@ import {
 
 import type { CardIssuer, Satisfaction } from '@/api/enums'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
+import AppFilterDropdown from '@/components/common/AppFilterDropdown.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
 
+const route = inject(routeLocationKey, null)
 const tabs = ['거래내역', '추가 업로드', '회고 이력'] as const
 const tab = ref<(typeof tabs)[number]>('거래내역')
 
@@ -71,17 +73,83 @@ const transactions = [
 ]
 
 const search = ref('')
-const scope = ref<'전체' | '회고함' | '미회고'>('전체')
+const routeCategory = typeof route?.query.category === 'string' ? route.query.category : ''
+const category = ref(routeCategory === '심야 배달' ? '식비 · 배달' : routeCategory)
+const period = ref('ALL')
+const retrospect = ref('ALL')
+const sortOrder = ref('LATEST')
 
-const filteredTransactions = computed(() =>
-  transactions.filter((t) => {
-    const matchesText =
-      search.value === '' || t.merchant.includes(search.value) || t.category.includes(search.value)
-    const matchesScope =
-      scope.value === '전체' || (scope.value === '회고함' ? t.retrospected : !t.retrospected)
-    return matchesText && matchesScope
-  }),
+const periodOptions = [
+  { value: 'ALL', label: '기간' },
+  { value: '3D', label: '3일' },
+  { value: '7D', label: '7일' },
+  { value: '1M', label: '1개월' },
+  { value: '3M', label: '3개월' },
+] as const
+const categoryOptions = [
+  { value: '', label: '카테고리' },
+  ...Array.from(new Set(transactions.map((transaction) => transaction.category))).map((value) => ({
+    value,
+    label: value,
+  })),
+]
+const retrospectOptions = [
+  { value: 'ALL', label: '회고' },
+  { value: 'DONE', label: '회고함' },
+  { value: 'TODO', label: '미회고' },
+] as const
+const sortOptions = [
+  { value: 'LATEST', label: '정렬' },
+  { value: 'LATEST_SELECTED', label: '최신순' },
+  { value: 'OLDEST', label: '오래된순' },
+] as const
+
+function transactionTime(at: string) {
+  return new Date(at.replace(/\./g, '-').replace(' ', 'T')).getTime()
+}
+
+const latestTransactionTime = Math.max(
+  ...transactions.map((transaction) => transactionTime(transaction.at)),
 )
+const periodDays: Record<string, number> = { '3D': 3, '7D': 7, '1M': 30, '3M': 90 }
+
+const allFiltersCleared = computed(
+  () =>
+    period.value === 'ALL' &&
+    category.value === '' &&
+    retrospect.value === 'ALL' &&
+    sortOrder.value === 'LATEST',
+)
+
+function clearFilters() {
+  period.value = 'ALL'
+  category.value = ''
+  retrospect.value = 'ALL'
+  sortOrder.value = 'LATEST'
+}
+
+const filteredTransactions = computed(() => {
+  const filtered = transactions.filter((transaction) => {
+    const matchesText =
+      search.value === '' ||
+      transaction.merchant.includes(search.value) ||
+      transaction.category.includes(search.value)
+    const matchesCategory = category.value === '' || transaction.category === category.value
+    const matchesRetrospect =
+      retrospect.value === 'ALL' ||
+      (retrospect.value === 'DONE' ? transaction.retrospected : !transaction.retrospected)
+    const days = periodDays[period.value]
+    const matchesPeriod =
+      days === undefined ||
+      transactionTime(transaction.at) >= latestTransactionTime - (days - 1) * 24 * 60 * 60 * 1000
+    return matchesText && matchesCategory && matchesRetrospect && matchesPeriod
+  })
+
+  return [...filtered].sort((a, b) => {
+    const difference = transactionTime(b.at) - transactionTime(a.at)
+    return sortOrder.value === 'OLDEST' ? -difference : difference
+  })
+})
 
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
@@ -243,43 +311,49 @@ const retrospectHistory = [
           />
         </div>
 
-        <div class="flex gap-2">
+        <div class="flex gap-1">
           <button
-            v-for="label in ['기간', '카드사', '카테고리', '정렬']"
-            :key="label"
             type="button"
-            class="border-line text-ink-muted flex flex-1 items-center justify-center gap-0.5 rounded-xl border py-2 text-xs font-medium"
-          >
-            {{ label }} <IconChevronDown :size="13" />
-          </button>
-        </div>
-
-        <div class="flex gap-2">
-          <button
-            v-for="s in ['전체', '회고함', '미회고'] as const"
-            :key="s"
-            type="button"
-            class="flex-1 rounded-xl border py-2 text-sm font-medium"
+            class="border-line h-9 shrink-0 rounded-xl border px-3 text-xs font-medium"
             :class="
-              scope === s ? 'border-brand bg-brand/5 text-brand' : 'border-line text-ink-muted'
+              allFiltersCleared
+                ? 'border-brand bg-brand-soft text-brand'
+                : 'bg-surface text-ink-muted'
             "
-            @click="scope = s"
+            @click="clearFilters"
           >
-            {{ s }}
+            전체
           </button>
+          <AppFilterDropdown
+            v-model="period"
+            label="기간 필터"
+            :options="periodOptions"
+            :active="period !== 'ALL'"
+          />
+          <AppFilterDropdown
+            v-model="category"
+            label="카테고리 필터"
+            :options="categoryOptions"
+            :active="category !== ''"
+          />
+          <AppFilterDropdown
+            v-model="retrospect"
+            label="회고 필터"
+            :options="retrospectOptions"
+            :active="retrospect !== 'ALL'"
+          />
+          <AppFilterDropdown
+            v-model="sortOrder"
+            label="정렬 필터"
+            :options="sortOptions"
+            :active="sortOrder !== 'LATEST'"
+            align="right"
+          />
         </div>
 
-        <div class="flex items-center justify-between">
-          <p class="text-ink-muted text-xs">
-            총 {{ filteredTransactions.length.toLocaleString('ko-KR') }}건
-          </p>
-          <button
-            type="button"
-            class="text-ink-muted flex items-center gap-0.5 text-xs"
-          >
-            최근 거래일 순 <IconChevronDown :size="13" />
-          </button>
-        </div>
+        <p class="text-ink-muted text-xs">
+          총 {{ filteredTransactions.length.toLocaleString('ko-KR') }}건
+        </p>
 
         <div class="divide-line border-line divide-y rounded-2xl border">
           <button
