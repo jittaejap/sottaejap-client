@@ -16,7 +16,7 @@ import {
 import ChatBubble from '@/components/chat/ChatBubble.vue'
 import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
-import NumberUnitInput from '@/components/common/NumberUnitInput.vue'
+import GoalDatePicker from '@/components/common/goal-date-picker.vue'
 import goalCustom from '@/assets/images/onboarding/goal-custom.png'
 import goalEmergency from '@/assets/images/onboarding/goal-emergency.png'
 import goalIndependence from '@/assets/images/onboarding/goal-independence.png'
@@ -25,12 +25,32 @@ import assistantHappy from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import assistantThinking from '@/assets/images/ai/05_thinking_hat.png'
 
 const router = useRouter()
+
+function toDateIso(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function addCalendarMonths(value: string, months: number) {
+  const [year = 0, month = 1, day = 1] = value.split('-').map(Number)
+  const targetMonth = new Date(year, month - 1 + months, 1)
+  const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate()
+  return toDateIso(
+    new Date(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(day, lastDay)),
+  )
+}
+
+function initialGoalDueDate() {
+  return addCalendarMonths(toDateIso(new Date()), 1)
+}
 const step = ref(1)
 const totalSteps = 4
 const goalType = ref('TRAVEL')
 const goalName = ref('')
 const goalAmount = ref(3_000_000)
-const goalPeriod = ref(12)
+const goalDueDate = ref(initialGoalDueDate())
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
 const uploadError = ref('')
@@ -160,6 +180,15 @@ const reviewRecords = ref<ReviewRecord[]>([])
 const reviewMessages = ref<ReviewMessage[]>([])
 const reviewAnswers = ref<ReviewAnswer>({})
 const reviewThread = useTemplateRef<HTMLElement>('reviewThread')
+
+function scrollCalendarIntoView(isOpen: boolean) {
+  if (!isOpen) return
+  void nextTick(() => {
+    if (reviewThread.value) {
+      reviewThread.value.scrollTo({ top: reviewThread.value.scrollHeight, behavior: 'smooth' })
+    }
+  })
+}
 const currentReviewTransaction = computed(() => reviewTransactions[reviewIndex.value]!)
 const completedReviewCount = computed(() => reviewRecords.value.length)
 const reviewProgress = computed(
@@ -282,7 +311,7 @@ const sensitivityOptions = [
 const canProceed = computed(() => {
   if (step.value === 2) return uploadedFile.value !== null
   if (step.value === 1 && goalType.value === 'CUSTOM' && goalName.value.trim() === '') return false
-  return goalAmount.value > 0 && goalPeriod.value > 0
+  return goalAmount.value > 0 && goalDueDate.value !== ''
 })
 
 function onGoalNameInput(event: Event) {
@@ -407,10 +436,10 @@ function next() {
           </div>
         </div>
         <div class="space-y-2">
-          <label class="text-ink-muted text-[13px] font-bold">목표 기간</label>
-          <NumberUnitInput
-            v-model="goalPeriod"
-            unit="개월"
+          <label class="text-ink-muted text-[13px] font-bold">목표 달성 예정일</label>
+          <GoalDatePicker
+            v-model="goalDueDate"
+            @open-change="scrollCalendarIntoView"
           />
           <div class="flex gap-2">
             <button
@@ -418,7 +447,7 @@ function next() {
               :key="period"
               type="button"
               class="border-line text-ink-muted rounded-full border px-3 py-2 text-xs font-medium"
-              @click="goalPeriod += period"
+              @click="goalDueDate = addCalendarMonths(goalDueDate, period)"
             >
               +{{ period }}개월
             </button>
