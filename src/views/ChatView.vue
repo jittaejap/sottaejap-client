@@ -594,7 +594,7 @@ function confirmAllocate() {
           </div>
           <div class="flex gap-2">
             <span class="border-brand text-brand rounded-full border px-3 py-1 text-xs font-medium"
-              >최근 30일</span
+              >최근 3일</span
             >
             <button
               type="button"
