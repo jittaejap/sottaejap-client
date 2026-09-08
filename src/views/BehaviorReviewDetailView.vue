@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { Satisfaction } from '@/api/enums'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
-import AppFilterDropdown from '@/components/common/AppFilterDropdown.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import CategoryIcon from '@/components/common/category-icon.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
@@ -15,49 +13,19 @@ const router = useRouter()
 const behaviorId = computed(() => Number(route.params.behaviorId))
 const serverDetail = ref<BehaviorDetail | null>(null)
 const behavior = computed(() => serverDetail.value?.behavior.name ?? '')
-const satisfaction = ref<'ALL' | Satisfaction>('ALL')
-const period = ref('최근 3개월')
-const sort = ref('최근 완료')
-const periodOptions = [
-  { value: '최근 3개월', label: '최근 3개월' },
-  { value: '최근 1개월', label: '최근 1개월' },
-  { value: '전체 기간', label: '전체 기간' },
-] as const
-const satisfactionOptions = [
-  { value: 'ALL', label: '만족도' },
-  { value: 'HIGH', label: '만족했어요' },
-  { value: 'LOW', label: '별로예요' },
-  { value: 'UNKNOWN', label: '모르겠어요' },
-] as const
-const sortOptions = [
-  { value: '최근 완료', label: '최근 완료' },
-  { value: '오래된 순', label: '오래된 순' },
-] as const
-const reviews = computed<
-  { merchant: string; amount: number; at: string; satisfaction: Satisfaction; purpose: string }[]
->(() =>
+const transactions = computed(() =>
   (serverDetail.value?.transactions ?? []).map((transaction) => ({
+    id: transaction.id,
     merchant: transaction.merchant,
     amount: transaction.amount,
     at: new Intl.DateTimeFormat('ko-KR', {
       dateStyle: 'medium',
       timeStyle: 'short',
     }).format(new Date(transaction.occurredAt)),
-    satisfaction: 'UNKNOWN',
-    purpose: transaction.category,
+    category: transaction.category,
   })),
 )
-const satisfactionMeta: Record<Satisfaction, { label: string; badge: string }> = {
-  HIGH: { label: '만족했어요', badge: 'bg-success-soft text-success' },
-  LOW: { label: '별로예요', badge: 'bg-brand-soft text-brand' },
-  UNKNOWN: { label: '모르겠어요', badge: 'bg-surface-muted text-ink-faint' },
-}
-const filteredReviews = computed(() =>
-  satisfaction.value === 'ALL'
-    ? reviews.value
-    : reviews.value.filter((review) => review.satisfaction === satisfaction.value),
-)
-const total = computed(() => filteredReviews.value.reduce((sum, item) => sum + item.amount, 0))
+const total = computed(() => transactions.value.reduce((sum, item) => sum + item.amount, 0))
 onMounted(async () => {
   if (Number.isInteger(behaviorId.value)) serverDetail.value = await getBehavior(behaviorId.value)
 })
@@ -66,7 +34,7 @@ onMounted(async () => {
 <template>
   <div class="bg-surface flex h-full flex-col">
     <AppTopBar
-      title="회고 내역"
+      title="거래 내역"
       :back-handler="() => router.back()"
     />
     <main class="flex-1 overflow-y-auto pb-5">
@@ -81,52 +49,28 @@ onMounted(async () => {
           <p class="text-ink-muted text-xs">밤 늦게 시키는 배달 음식</p>
         </div>
       </section>
-      <section class="flex gap-1.5 px-5 pb-2">
-        <AppFilterDropdown
-          v-model="period"
-          label="기간 필터"
-          :options="periodOptions"
-          active
-        />
-        <AppFilterDropdown
-          v-model="satisfaction"
-          label="만족도 필터"
-          :options="satisfactionOptions"
-          :active="satisfaction !== 'ALL'"
-        />
-        <AppFilterDropdown
-          v-model="sort"
-          label="정렬 필터"
-          :options="sortOptions"
-        />
-      </section>
       <section class="space-y-3 px-5 py-4">
         <div class="flex items-center justify-between text-[13px] font-bold">
-          <p class="text-ink">회고 완료 총 {{ filteredReviews.length }}건</p>
+          <p class="text-ink">거래 총 {{ transactions.length }}건</p>
           <p class="text-brand">총 {{ total.toLocaleString('ko-KR') }}원</p>
         </div>
         <article
-          v-for="review in filteredReviews"
-          :key="review.merchant + review.at"
+          v-for="transaction in transactions"
+          :key="transaction.id"
           class="border-line bg-surface flex items-center gap-3 rounded-2xl border p-4"
         >
-          <MerchantBadge :name="review.merchant" />
+          <MerchantBadge :name="transaction.merchant" />
           <div class="min-w-0 flex-1">
             <div class="flex items-center justify-between">
-              <strong class="text-ink text-sm">{{ review.merchant }}</strong
+              <strong class="text-ink text-sm">{{ transaction.merchant }}</strong
               ><strong class="text-ink text-sm"
-                >{{ review.amount.toLocaleString('ko-KR') }}원</strong
+                >{{ transaction.amount.toLocaleString('ko-KR') }}원</strong
               >
             </div>
             <div class="mt-1 flex items-center justify-between">
-              <span class="text-ink-faint text-[11px]">{{ review.at }}</span
-              ><span
-                class="rounded-md px-2 py-1 text-[10px] font-bold"
-                :class="satisfactionMeta[review.satisfaction].badge"
-                >{{ satisfactionMeta[review.satisfaction].label }}</span
-              >
+              <span class="text-ink-faint text-[11px]">{{ transaction.at }}</span>
             </div>
-            <p class="text-brand mt-1 text-[11px]">{{ review.purpose }}</p>
+            <p class="text-brand mt-1 text-[11px]">{{ transaction.category }}</p>
           </div>
         </article>
       </section>

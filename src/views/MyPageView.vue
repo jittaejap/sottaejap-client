@@ -15,9 +15,16 @@ import AppTopBar from '@/components/common/AppTopBar.vue'
 import maleProfile from '@/assets/images/profile/male-profile.png'
 import femaleProfile from '@/assets/images/profile/female-profile.png'
 import { useUserStore } from '@/stores/user'
+import { setAccessToken } from '@/api/httpClient'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+async function logout() {
+  setAccessToken(null)
+  userStore.clear()
+  await router.replace('/login')
+}
 
 function readUserField(field: string) {
   const user: unknown = userStore.me
@@ -144,7 +151,7 @@ const menu = [
       <button
         type="button"
         class="bg-surface-muted text-ink-muted flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold"
-        @click="router.push('/login')"
+        @click="logout"
       >
         <IconLogout :size="18" />
         로그아웃

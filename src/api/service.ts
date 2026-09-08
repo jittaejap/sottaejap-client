@@ -79,7 +79,7 @@ export async function saveRetrospect(input: {
   purpose: string
   companion: string
   repeatIntent: boolean
-  source: 'CANDIDATE'
+  source: 'CANDIDATE' | 'ONBOARDING' | 'MANUAL'
 }) {
   const response = await httpClient.post('/retrospects', input)
   return response.data

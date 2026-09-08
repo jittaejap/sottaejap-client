@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
+import { getRetrospectCandidates, saveRetrospect } from '@/api/service'
 
 vi.mock('@/api/service', () => ({
   createGoal: vi.fn().mockResolvedValue({}),
@@ -108,6 +109,26 @@ describe('온보딩 표본 회고', () => {
     expect(pushSpy).toHaveBeenCalledWith('/')
   })
 
+  it('회고 후보가 없으면 빈 상태를 보여주고 완료할 수 있다', async () => {
+    vi.mocked(getRetrospectCandidates).mockResolvedValueOnce([])
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+
+    await click(wrapper, '다음 단계로')
+    await selectUpload(wrapper)
+    await click(wrapper, '다음 단계로')
+    await click(wrapper, '다음 단계로')
+
+    const pushSpy = vi.spyOn(router, 'push')
+
+    expect(wrapper.text()).toContain('지금 회고할 거래가 없어요')
+    expect(wrapper.text()).not.toContain('0 / 0')
+    await click(wrapper, '홈으로 가기')
+    expect(pushSpy).toHaveBeenCalledWith('/')
+  })
+
   it('거래별 대화를 기록하며 10건 완료 후에만 홈으로 이동한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
@@ -127,6 +148,10 @@ describe('온보딩 표본 회고', () => {
       await click(wrapper, '식사')
       await click(wrapper, '혼자')
       await click(wrapper, '네')
+
+      expect(saveRetrospect).toHaveBeenLastCalledWith(
+        expect.objectContaining({ source: 'ONBOARDING' }),
+      )
 
       expect(wrapper.text()).toContain(completed + ' / 10')
       expect(router.currentRoute.value.path).toBe('/onboarding')

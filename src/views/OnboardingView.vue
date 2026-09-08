@@ -210,8 +210,11 @@ const reviewProgress = computed(
   () => (completedReviewCount.value / reviewTransactions.value.length) * 100,
 )
 const allReviewsComplete = computed(
-  () => completedReviewCount.value === reviewTransactions.value.length,
+  () =>
+    reviewTransactions.value.length > 0 &&
+    completedReviewCount.value === reviewTransactions.value.length,
 )
+const hasReviewCandidates = computed(() => reviewTransactions.value.length > 0)
 const reviewOptions = computed<readonly string[]>(() => {
   if (reviewStage.value === 'satisfaction') return ['만족했어요', '별로예요', '잘 모르겠어요']
   if (reviewStage.value === 'purpose')
@@ -277,7 +280,7 @@ async function answerReview(value: string) {
         purpose: reviewAnswers.value.purpose ?? '기타',
         companion: reviewAnswers.value.companion ?? '기타',
         repeatIntent: value === '네',
-        source: 'CANDIDATE',
+        source: 'ONBOARDING',
       })
       reviewStage.value = 'complete'
       reviewMessages.value.push({ role: 'ai', text: '좋아요! 회고가 완료됐어요 👏' })
@@ -421,7 +424,13 @@ async function next() {
       savedSteps.add(3)
     }
     step.value += 1
-    if (step.value === totalSteps && reviewMessages.value.length === 0) beginReview()
+    if (
+      step.value === totalSteps &&
+      hasReviewCandidates.value &&
+      reviewMessages.value.length === 0
+    ) {
+      beginReview()
+    }
   } catch {
     saveError.value = '입력 내용을 저장하지 못했어요. 다시 시도해주세요.'
   } finally {
@@ -439,8 +448,7 @@ async function next() {
         type="button"
         class="text-ink flex size-6 items-center justify-center"
         aria-label="이전"
-        :disabled="step === 1"
-        @click="step -= 1"
+        :disabled="true"
       >
         <IconChevronLeft
           :size="24"
@@ -696,7 +704,7 @@ async function next() {
       </section>
 
       <section
-        v-else
+        v-else-if="hasReviewCandidates"
         class="space-y-3 pb-3"
       >
         <div>
@@ -778,11 +786,25 @@ async function next() {
           @pick="answerReview"
         />
       </section>
+      <section
+        v-else
+        class="flex h-full flex-col items-center justify-center gap-3 pb-16 text-center"
+      >
+        <span
+          class="bg-brand-soft text-brand flex size-14 items-center justify-center rounded-full"
+        >
+          <IconCheck :size="28" />
+        </span>
+        <h1 class="text-ink text-xl font-bold">지금 회고할 거래가 없어요</h1>
+        <p class="text-ink-muted text-sm leading-relaxed">
+          목표와 거래내역, 분석 설정은 모두 저장됐어요.<br />바로 홈에서 소비 지도를 확인해보세요.
+        </p>
+      </section>
     </main>
 
     <footer class="bg-surface flex shrink-0 gap-2.5 px-5 pt-4 pb-8">
       <button
-        v-if="step === 4"
+        v-if="step === 4 && hasReviewCandidates"
         type="button"
         class="border-brand text-ink h-[52px] flex-1 rounded-2xl border text-sm font-bold"
         :disabled="saving"
@@ -791,7 +813,7 @@ async function next() {
         나중에 회고하기
       </button>
       <button
-        v-if="step === 4"
+        v-if="step === 4 && hasReviewCandidates"
         type="button"
         class="bg-brand text-surface flex h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-bold disabled:opacity-40"
         :disabled="reviewStage !== 'complete' || saving"
@@ -801,7 +823,16 @@ async function next() {
         <IconArrowRight :size="18" />
       </button>
       <button
-        v-else
+        v-if="step === 4 && !hasReviewCandidates"
+        type="button"
+        class="bg-brand text-surface h-[52px] w-full rounded-2xl text-sm font-bold disabled:opacity-40"
+        :disabled="saving"
+        @click="finishOnboarding"
+      >
+        홈으로 가기
+      </button>
+      <button
+        v-if="step !== 4"
         type="button"
         class="bg-brand text-surface flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-base font-bold disabled:opacity-40"
         :disabled="!canProceed || saving"

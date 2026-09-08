@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
@@ -9,6 +9,9 @@ import maleProfile from '@/assets/images/profile/male-profile.png'
 import { routes } from '@/router'
 import { useUserStore } from '@/stores/user'
 import MyPageView from '@/views/MyPageView.vue'
+import { setAccessToken } from '@/api/httpClient'
+
+vi.mock('@/api/httpClient', () => ({ setAccessToken: vi.fn() }))
 
 async function mountMyPage() {
   const pinia = createPinia()
@@ -16,7 +19,7 @@ async function mountMyPage() {
   await router.push('/me')
   await router.isReady()
   const wrapper = mount(MyPageView, { global: { plugins: [pinia, router] } })
-  return { wrapper, store: useUserStore(pinia) }
+  return { wrapper, store: useUserStore(pinia), router }
 }
 
 describe('마이페이지 프로필', () => {
@@ -47,5 +50,22 @@ describe('마이페이지 프로필', () => {
     store.me = { gender: 'UNKNOWN', name: '사용자' } as unknown as UserMe
     await wrapper.vm.$nextTick()
     expect(wrapper.get('img[alt="사용자 프로필"]').attributes('src')).toBe(femaleProfile)
+  })
+
+  it('로그아웃하면 토큰과 사용자 상태를 비운 뒤 로그인 화면으로 이동한다', async () => {
+    const { wrapper, store, router } = await mountMyPage()
+    const replaceSpy = vi.spyOn(router, 'replace')
+    store.me = { nickname: '예리' } as UserMe
+
+    const logoutButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('로그아웃'))
+    if (!logoutButton) throw new Error('로그아웃 버튼을 찾지 못했습니다.')
+    await logoutButton.trigger('click')
+    await flushPromises()
+
+    expect(setAccessToken).toHaveBeenCalledWith(null)
+    expect(store.me).toBeNull()
+    expect(replaceSpy).toHaveBeenCalledWith('/login')
   })
 })

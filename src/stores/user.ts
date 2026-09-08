@@ -10,5 +10,9 @@ export const useUserStore = defineStore('user', () => {
   /** FR-09-03 — false면 2-1 온보딩으로 보낸다. */
   const onboardingCompleted = computed(() => me.value?.onboardingCompleted ?? false)
 
-  return { me, onboardingCompleted }
+  function clear() {
+    me.value = null
+  }
+
+  return { me, onboardingCompleted, clear }
 })
