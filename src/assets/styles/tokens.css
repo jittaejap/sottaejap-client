@@ -1,20 +1,56 @@
 /*
  * 디자인 토큰 — 색·라운드·타이포의 유일한 정의 위치.
  * 컴포넌트에는 HEX를 직접 쓰지 않는다 (eslint design-tokens/no-raw-colors).
- * 아래 값은 피그마(석예림) 팔레트 확정 전 임시값이다. 확정되면 여기만 바꾼다.
+ * 브랜드 오렌지·카카오·만족도 3색은 피그마 목업에서 픽셀 샘플링한 값이다.
  */
 @theme {
   --color-surface: #ffffff;
-  --color-surface-muted: #f5f5f4;
-  --color-ink: #1c1917;
-  --color-ink-muted: #78716c;
-  --color-line: #e7e5e4;
-  --color-brand: #2563eb;
+  --color-surface-muted: #f7f8fa;
+  --color-ink: #1a1d20;
+  --color-ink-muted: #5e656b;
+  --color-ink-faint: #8e959b;
+  --color-line: #e5eaf0;
+  --color-divider: #f0f0f0;
+  --color-brand: #ff5a2e;
+  --color-brand-soft: #fff5f2;
+  --color-brand-line: #ffe0d9;
+  --color-progress-track: #f0f3f6;
+  --color-success: #22c55e;
+  --color-success-soft: #f1fcf4;
+  --color-preview-green: #e8f5e9;
+  --color-preview-blue: #e3f2fd;
+  --color-preview-yellow: #fffde7;
+  --color-preview-red: #fff0f0;
+  --color-profile-green: #f0fbf4;
+  --color-profile-blue: #eff3ff;
+  --color-profile-orange: #fff7ed;
+  --color-profile-red: #fff1f0;
+  --color-preview-green-ink: #22c55e;
+  --color-preview-blue-ink: #3b82f6;
+  --color-preview-yellow-ink: #f59e0b;
+  --color-preview-red-ink: #ef4444;
 
-  /* 만족도 지도 판정 2색 + 보류 (07 §8 · E-11) */
+  /* 만족도 지도 판정 2색 + 보류 (07 §8 · E-11) — 이 3색은 지도 점·배지 전용이다 */
   --color-verdict-sustain: #16a34a;
   --color-verdict-adjust: #ea580c;
   --color-verdict-pending: #a8a29e;
+
+  /* 만족도 지도 4개 영역 — 최신 지도 UI */
+  --color-map-awesome: #16a34a;
+  --color-map-great: #1687f8;
+  --color-map-umm: #f59e0b;
+  --color-map-hmm: #ef2027;
+  --color-map-awesome-soft: #f3fbf5;
+  --color-map-great-soft: #f3f8ff;
+  --color-map-umm-soft: #fff9f1;
+  --color-map-hmm-soft: #fff3f4;
+
+  /* Satisfaction enum(HIGH/LOW/UNKNOWN) 표시색 — 온보딩·회고 피드백 아이콘 전용 */
+  --color-satisfaction-high: #14b8a6;
+  --color-satisfaction-low: #ff7a68;
+  --color-satisfaction-unknown: #b3b3b3;
+
+  --color-kakao: #fee500;
 
   --radius-card: 1rem;
 }

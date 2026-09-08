@@ -9,4 +9,71 @@ body,
 
 body {
   @apply bg-surface text-ink antialiased;
+  /* 한글은 단어 중간에서 줄바꿈되지 않도록 한다 */
+  word-break: keep-all;
+}
+
+/*
+ * 화면 전환 — 탭·서브뷰·대화 말풍선이 튀지 않고 이어지도록 한다.
+ * 길이는 짧게 잡는다. 모바일에서 200ms를 넘기면 느리다고 느낀다.
+ */
+.page-enter-active {
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out;
+}
+.page-leave-active {
+  transition:
+    opacity 0.12s ease-in,
+    transform 0.12s ease-in;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 한 화면 안에서 서브뷰(상세·목록)를 갈아끼울 때 */
+.subview-enter-active {
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+.subview-leave-active {
+  transition: opacity 0.1s ease-in;
+}
+.subview-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+.subview-leave-to {
+  opacity: 0;
+}
+
+/* 채팅 말풍선과 단계 카드가 아래에서 떠오르게 */
+.msg-enter-active {
+  transition:
+    opacity 0.24s ease-out,
+    transform 0.24s ease-out;
+}
+.msg-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.msg-move {
+  transition: transform 0.24s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active,
+  .subview-enter-active,
+  .subview-leave-active,
+  .msg-enter-active,
+  .msg-move {
+    transition: none;
+  }
 }
