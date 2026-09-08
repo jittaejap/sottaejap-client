@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { routes } from '@/router'
@@ -52,7 +53,7 @@ describe('온보딩 표본 회고', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()
-    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     expect(wrapper.find('input[aria-label="목표 이름"]').exists()).toBe(false)
     expect(wrapper.getComponent(MoneyInput).classes()).toContain('border-brand')
@@ -73,7 +74,7 @@ describe('온보딩 표본 회고', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()
-    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
 
@@ -94,7 +95,7 @@ describe('온보딩 표본 회고', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()
-    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
     await selectUpload(wrapper)
@@ -133,7 +134,7 @@ describe('온보딩 표본 회고', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()
-    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
     await selectUpload(wrapper)
