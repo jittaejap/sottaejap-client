@@ -77,6 +77,7 @@ describe('온보딩 표본 회고', () => {
     const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
+    await click(wrapper, '다음 단계로')
 
     const nextButton = wrapper
       .findAll('button')
@@ -98,8 +99,8 @@ describe('온보딩 표본 회고', () => {
     const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
-    await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
+    await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
 
     expect(wrapper.text()).toContain('0 / 10')
@@ -118,8 +119,8 @@ describe('온보딩 표본 회고', () => {
     const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
-    await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
+    await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
 
     const pushSpy = vi.spyOn(router, 'push')
@@ -137,8 +138,8 @@ describe('온보딩 표본 회고', () => {
     const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
-    await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
+    await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
 
     expect(wrapper.text()).toContain('0 / 10')

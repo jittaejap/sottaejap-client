@@ -41,9 +41,9 @@ const goal = {
 }
 
 const savingsActions = [
-  { label: '심야 배달 줄이기', amount: 46_000, behavior: '심야 배달', icon: IconMoped },
-  { label: '카페 이용 줄이기', amount: 12_000, behavior: '카페', icon: IconCoffee },
-  { label: '택시 이용 줄이기', amount: 11_000, behavior: '택시', icon: IconCar },
+  { label: '심야 배달 줄이기', amount: 46_000, behaviorId: 6, icon: IconMoped },
+  { label: '카페 이용 줄이기', amount: 12_000, behaviorId: 3, icon: IconCoffee },
+  { label: '택시 이용 줄이기', amount: 11_000, behaviorId: 7, icon: IconCar },
 ]
 
 const weeklyTrend = [19_000, 24_000, 17_000, 31_000, 28_000, 35_000, 46_000]
@@ -97,8 +97,8 @@ const satisfactionPreview = computed(() => [
   },
 ])
 
-function openBehavior(behavior: string) {
-  void router.push({ name: 'behavior-detail', query: { behavior } })
+function openBehavior(behaviorId: number) {
+  void router.push({ name: 'behavior-detail', params: { behaviorId } })
 }
 </script>
 
@@ -209,7 +209,7 @@ function openBehavior(behavior: string) {
               <button
                 type="button"
                 class="border-line bg-surface flex h-[126px] flex-col items-start gap-1.5 rounded-[20px] border p-4 text-left"
-                @click="openBehavior('심야 배달')"
+                @click="openBehavior(6)"
               >
                 <span class="flex w-full items-center justify-between">
                   <span class="text-ink-faint text-[13px] font-medium">행동 변화</span>
@@ -355,7 +355,7 @@ function openBehavior(behavior: string) {
                   :key="a.label"
                   type="button"
                   class="flex h-14 w-full items-center justify-between px-4"
-                  @click="openBehavior(a.behavior)"
+                  @click="openBehavior(a.behaviorId)"
                 >
                   <span class="flex items-center gap-3">
                     <span class="bg-brand-soft flex size-9 items-center justify-center rounded-full"

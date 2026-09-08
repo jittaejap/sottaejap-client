@@ -16,7 +16,6 @@ import {
 import ChatBubble from '@/components/chat/ChatBubble.vue'
 import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
-import GoalDatePicker from '@/components/common/goal-date-picker.vue'
 import goalCustom from '@/assets/images/onboarding/goal-custom.png'
 import goalEmergency from '@/assets/images/onboarding/goal-emergency.png'
 import goalIndependence from '@/assets/images/onboarding/goal-independence.png'
@@ -37,32 +36,11 @@ import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
-
-function toDateIso(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function addCalendarMonths(value: string, months: number) {
-  const [year = 0, month = 1, day = 1] = value.split('-').map(Number)
-  const targetMonth = new Date(year, month - 1 + months, 1)
-  const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate()
-  return toDateIso(
-    new Date(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(day, lastDay)),
-  )
-}
-
-function initialGoalDueDate() {
-  return addCalendarMonths(toDateIso(new Date()), 1)
-}
 const step = ref(1)
 const totalSteps = 4
 const goalType = ref('TRAVEL')
 const goalName = ref('')
 const goalAmount = ref(3_000_000)
-const goalDueDate = ref(initialGoalDueDate())
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -198,14 +176,6 @@ const reviewMessages = ref<ReviewMessage[]>([])
 const reviewAnswers = ref<ReviewAnswer>({})
 const reviewThread = useTemplateRef<HTMLElement>('reviewThread')
 
-function scrollCalendarIntoView(isOpen: boolean) {
-  if (!isOpen) return
-  void nextTick(() => {
-    if (reviewThread.value) {
-      reviewThread.value.scrollTo({ top: reviewThread.value.scrollHeight, behavior: 'smooth' })
-    }
-  })
-}
 const currentReviewTransaction = computed(() => reviewTransactions.value[reviewIndex.value]!)
 const completedReviewCount = computed(() => reviewRecords.value.length)
 const reviewProgress = computed(
@@ -368,9 +338,9 @@ const sensitivityOptions = [
   },
 ] as const
 const canProceed = computed(() => {
-  if (step.value === 2) return uploadedFile.value !== null
+  if (step.value === 3) return uploadedFile.value !== null
   if (step.value === 1 && goalType.value === 'CUSTOM' && goalName.value.trim() === '') return false
-  return goalAmount.value > 0 && goalDueDate.value !== ''
+  return goalAmount.value > 0
 })
 
 function onGoalNameInput(event: Event) {
@@ -398,6 +368,14 @@ async function next() {
       })
       savedSteps.add(1)
     } else if (step.value === 2 && !savedSteps.has(2)) {
+      const thresholds = { RELAXED: 3, BALANCED: 2, DETAILED: 1.5 }
+      await updateSettings({
+        monthlyBudget: monthlyBudget.value,
+        outlierThreshold: thresholds[sensitivity.value],
+        retrospectDelayDays: 1,
+      })
+      savedSteps.add(2)
+    } else if (step.value === 3 && !savedSteps.has(3)) {
       if (!selectedFile.value) return
       const result = await uploadTransactions(selectedFile.value)
       await startOnboarding({
@@ -417,14 +395,6 @@ async function next() {
         }).format(new Date(candidate.occurredAt)),
         tags: [candidate.category, candidate.timeSlot],
       }))
-      savedSteps.add(2)
-    } else if (step.value === 3 && !savedSteps.has(3)) {
-      const thresholds = { RELAXED: 3, BALANCED: 2, DETAILED: 1.5 }
-      await updateSettings({
-        monthlyBudget: monthlyBudget.value,
-        outlierThreshold: thresholds[sensitivity.value],
-        retrospectDelayDays: 1,
-      })
       savedSteps.add(3)
     }
     step.value += 1
@@ -548,28 +518,69 @@ async function next() {
             </button>
           </div>
         </div>
+      </section>
+
+      <section
+        v-else-if="step === 2"
+        class="space-y-6"
+      >
         <div class="space-y-2">
-          <label class="text-ink-muted text-[13px] font-bold">목표 달성 예정일</label>
-          <GoalDatePicker
-            v-model="goalDueDate"
-            @open-change="scrollCalendarIntoView"
-          />
-          <div class="flex gap-2">
-            <button
-              v-for="period in [3, 6, 12]"
-              :key="period"
-              type="button"
-              class="border-line text-ink-muted rounded-full border px-3 py-2 text-xs font-medium"
-              @click="goalDueDate = addCalendarMonths(goalDueDate, period)"
+          <h1 class="text-ink text-[22px] leading-[1.2] font-bold">
+            한 달 예산과 분석 기준을<br />설정해볼까요?
+          </h1>
+          <p class="text-ink-muted text-sm">나에게 딱 맞는 분석으로 도와드릴게요.</p>
+        </div>
+        <div class="space-y-2">
+          <label class="text-ink-muted text-[13px] font-bold">월 예산 (필수)</label
+          ><MoneyInput v-model="monthlyBudget" />
+          <p class="text-ink-faint text-[11px]">정확한 분석을 위해 월 예산은 입력해 주세요.</p>
+        </div>
+        <div class="space-y-2">
+          <p class="text-ink text-[13px] font-bold">평소와 다른 지출 알림</p>
+          <p class="text-ink-muted text-xs">거래내역을 바탕으로 평균보다 큰 결제를 감지해요.</p>
+          <div class="border-brand bg-brand-soft rounded-xl border p-3.5">
+            <span class="bg-brand text-surface rounded-md px-2 py-1 text-[10px] font-bold"
+              >추천 기준</span
             >
-              +{{ period }}개월
+            <p class="text-ink mt-2 text-xs font-bold">평균 결제보다 많이 큰 금액</p>
+            <p class="text-ink-faint mt-1 text-[10px]">
+              예: 평균 2~3만원 사용 → 10만원 이상 결제 시 알림
+            </p>
+          </div>
+        </div>
+        <div class="space-y-2.5">
+          <p class="text-ink text-[13px] font-bold">어느 정도 차이부터 알려드릴까요?</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="option in sensitivityOptions"
+              :key="option.value"
+              type="button"
+              class="relative flex h-[119px] flex-col items-center rounded-xl border px-2 py-3 text-center"
+              :class="sensitivity === option.value ? 'border-2 border-brand' : 'border-line'"
+              @click="sensitivity = option.value"
+            >
+              <span
+                v-if="sensitivity === option.value"
+                class="bg-brand text-surface absolute top-2 right-2 flex size-3.5 items-center justify-center rounded-full"
+                ><IconCheck :size="8" /></span
+              ><component
+                :is="option.icon"
+                :size="24"
+                :class="sensitivity === option.value ? 'text-brand' : 'text-ink-faint'"
+              /><b class="text-ink mt-1 text-xs">{{ option.title }}</b
+              ><span class="text-ink-faint mt-1 text-[9px] leading-[1.2]">{{ option.desc }}</span
+              ><span
+                class="bg-surface-muted text-ink-faint mt-auto rounded-md px-2 py-1 text-[9px] font-bold"
+                :class="sensitivity === option.value ? 'bg-brand-soft text-brand' : ''"
+                >{{ option.amount }}</span
+              >
             </button>
           </div>
         </div>
       </section>
 
       <section
-        v-else-if="step === 2"
+        v-else-if="step === 3"
         class="space-y-6"
       >
         <div class="space-y-2">
@@ -581,7 +592,7 @@ async function next() {
           </p>
         </div>
         <div class="space-y-2.5">
-          <p class="text-ink-muted text-[13px] font-bold">1. 파일 업로드</p>
+          <p class="text-ink-muted text-[13px] font-bold">파일 업로드</p>
           <div
             class="border-brand flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed p-5"
             @dragover.prevent
@@ -645,65 +656,6 @@ async function next() {
         <div class="text-ink-faint space-y-1.5 text-[11px]">
           <p>· 최근 12개월 이내 거래내역 파일을 권장해요.</p>
           <p>· 개인 정보는 분석 완료 후 즉시 안전하게 파기돼요.</p>
-        </div>
-      </section>
-
-      <section
-        v-else-if="step === 3"
-        class="space-y-6"
-      >
-        <div class="space-y-2">
-          <h1 class="text-ink text-[22px] leading-[1.2] font-bold">
-            한 달 예산과 분석 기준을<br />설정해볼까요?
-          </h1>
-          <p class="text-ink-muted text-sm">나에게 딱 맞는 분석으로 도와드릴게요.</p>
-        </div>
-        <div class="space-y-2">
-          <label class="text-ink-muted text-[13px] font-bold">월 예산 (필수)</label
-          ><MoneyInput v-model="monthlyBudget" />
-          <p class="text-ink-faint text-[11px]">정확한 분석을 위해 월 예산은 입력해 주세요.</p>
-        </div>
-        <div class="space-y-2">
-          <p class="text-ink text-[13px] font-bold">평소와 다른 지출 알림</p>
-          <p class="text-ink-muted text-xs">거래내역을 바탕으로 평균보다 큰 결제를 감지해요.</p>
-          <div class="border-brand bg-brand-soft rounded-xl border p-3.5">
-            <span class="bg-brand text-surface rounded-md px-2 py-1 text-[10px] font-bold"
-              >추천 기준</span
-            >
-            <p class="text-ink mt-2 text-xs font-bold">평균 결제보다 많이 큰 금액</p>
-            <p class="text-ink-faint mt-1 text-[10px]">
-              예: 평균 2~3만원 사용 → 10만원 이상 결제 시 알림
-            </p>
-          </div>
-        </div>
-        <div class="space-y-2.5">
-          <p class="text-ink text-[13px] font-bold">어느 정도 차이부터 알려드릴까요?</p>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="option in sensitivityOptions"
-              :key="option.value"
-              type="button"
-              class="relative flex h-[119px] flex-col items-center rounded-xl border px-2 py-3 text-center"
-              :class="sensitivity === option.value ? 'border-2 border-brand' : 'border-line'"
-              @click="sensitivity = option.value"
-            >
-              <span
-                v-if="sensitivity === option.value"
-                class="bg-brand text-surface absolute top-2 right-2 flex size-3.5 items-center justify-center rounded-full"
-                ><IconCheck :size="8" /></span
-              ><component
-                :is="option.icon"
-                :size="24"
-                :class="sensitivity === option.value ? 'text-brand' : 'text-ink-faint'"
-              /><b class="text-ink mt-1 text-xs">{{ option.title }}</b
-              ><span class="text-ink-faint mt-1 text-[9px] leading-[1.2]">{{ option.desc }}</span
-              ><span
-                class="bg-surface-muted text-ink-faint mt-auto rounded-md px-2 py-1 text-[9px] font-bold"
-                :class="sensitivity === option.value ? 'bg-brand-soft text-brand' : ''"
-                >{{ option.amount }}</span
-              >
-            </button>
-          </div>
         </div>
       </section>
 
