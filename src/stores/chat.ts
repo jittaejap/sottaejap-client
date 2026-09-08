@@ -44,5 +44,15 @@ export const useChatStore = defineStore('chat', () => {
     histories[mode].push(entry)
   }
 
-  return { activeMode, steps, histories, activate, addMessage }
+  function reset() {
+    activeMode.value = 'retrospect'
+    steps.retrospect = 'menu'
+    steps.analysis = 'menu'
+    steps.qna = 'menu'
+    histories.retrospect.splice(0)
+    histories.analysis.splice(0)
+    histories.qna.splice(0)
+  }
+
+  return { activeMode, steps, histories, activate, addMessage, reset }
 })

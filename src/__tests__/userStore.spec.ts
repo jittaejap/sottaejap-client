@@ -6,6 +6,7 @@ vi.mock('@/api/service', () => ({ getCurrentUser: vi.fn() }))
 import { getCurrentUser } from '@/api/service'
 import { httpClient } from '@/api/httpClient'
 import { useUserStore } from '@/stores/user'
+import { useChatStore } from '@/stores/chat'
 
 type RequestConfig = { headers: Record<string, string> }
 type RequestHandler = { fulfilled: (config: RequestConfig) => Promise<RequestConfig> }
@@ -30,6 +31,34 @@ describe('user store', () => {
 
     store.signOut()
     expect(await authHeader()).toBeUndefined()
+  })
+
+  it('로그아웃하면 채팅 세션을 초기화해 다음 계정에 이전 대화가 노출되지 않는다', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
+    const userStore = useUserStore()
+    const chatStore = useChatStore()
+
+    await userStore.signIn('first-user-token')
+    chatStore.activate('qna')
+    chatStore.steps.retrospect = 'qaPurpose'
+    chatStore.steps.analysis = 'analysis'
+    chatStore.steps.qna = 'qna'
+    chatStore.addMessage('retrospect', { role: 'user', text: '첫 번째 사용자의 회고' })
+    chatStore.addMessage('analysis', { role: 'ai', text: '첫 번째 사용자의 분석' })
+    chatStore.addMessage('qna', { role: 'user', text: '첫 번째 사용자의 금융 질문' })
+
+    userStore.signOut()
+
+    expect(chatStore.activeMode).toBe('retrospect')
+    expect(chatStore.steps).toEqual({ retrospect: 'menu', analysis: 'menu', qna: 'menu' })
+    expect(chatStore.histories.retrospect).toEqual([])
+    expect(chatStore.histories.analysis).toEqual([])
+    expect(chatStore.histories.qna).toEqual([])
+
+    await userStore.signIn('second-user-token')
+    expect(chatStore.histories.retrospect).toEqual([])
+    expect(chatStore.histories.analysis).toEqual([])
+    expect(chatStore.histories.qna).toEqual([])
   })
 
   it('사용자 조회가 실패하면 토큰까지 되돌린다', async () => {

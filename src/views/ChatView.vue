@@ -264,14 +264,14 @@ const behaviorSummary = [
 ]
 function startRetrospect() {
   chatStore.activate('retrospect')
-  if (chatStore.steps.retrospect !== 'menu' || chatStore.histories.retrospect.length > 0) return
+  if (chatStore.steps.retrospect !== 'menu') return
   say('user', '회고를 등록하고 싶어요!')
   step.value = 'candidate'
 }
 
 function startAnalysis() {
   chatStore.activate('analysis')
-  if (chatStore.steps.analysis !== 'menu' || chatStore.histories.analysis.length > 0) return
+  if (chatStore.steps.analysis !== 'menu') return
   say('user', '제 소비를 분석해주세요')
   say('ai', '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.', qnaImage)
   step.value = 'analysis'
@@ -279,7 +279,7 @@ function startAnalysis() {
 
 function startQna() {
   chatStore.activate('qna')
-  if (chatStore.steps.qna !== 'menu' || chatStore.histories.qna.length > 0) return
+  if (chatStore.steps.qna !== 'menu') return
   say('user', '금융 지식이 궁금해요')
   say('ai', '무엇이든 물어보세요! 예금·적금, 신용점수, 예산 관리처럼 궁금한 주제를 입력해 주세요.')
   step.value = 'qna'

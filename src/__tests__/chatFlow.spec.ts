@@ -71,6 +71,20 @@ describe('AI채팅 회고 흐름', () => {
     expect(wrapper.text()).toContain('금융 지식 Q&A')
   })
 
+  it('초기 메뉴에서 자유 입력 후에도 회고 등록을 시작할 수 있다', async () => {
+    const { wrapper } = await mountChat()
+
+    const input = wrapper.find('input[type="text"]')
+    await input.setValue('이번 달 배달비가 궁금해요')
+    await input.trigger('keyup.enter')
+
+    expect(wrapper.text()).toContain('이번 달 배달비가 궁금해요')
+
+    await click(wrapper, '회고 등록')
+    expect(wrapper.text()).toContain('최근 결제 중 다시 돌아볼 만한 소비를 골라봤어요')
+    expect(wrapper.text()).toContain('회고해볼게요')
+  })
+
   it('질문에 답할 때마다 대화 기록에 질문과 답이 함께 쌓인다', async () => {
     const { wrapper } = await mountChat()
 
