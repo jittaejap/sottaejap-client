@@ -33,8 +33,10 @@ import {
   uploadTransactions,
 } from '@/api/service'
 import type { Satisfaction } from '@/api/enums'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 function toDateIso(date: Date) {
   const year = date.getFullYear()
@@ -316,6 +318,8 @@ async function finishOnboarding() {
   saveError.value = ''
   try {
     await completeOnboarding()
+    // 이 갱신이 없으면 홈으로 이동하는 순간 진입 가드가 다시 온보딩으로 되돌린다.
+    userStore.markOnboardingCompleted()
     await router.push('/')
   } catch {
     saveError.value = '온보딩을 완료하지 못했어요. 다시 시도해주세요.'

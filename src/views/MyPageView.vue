@@ -15,16 +15,9 @@ import AppTopBar from '@/components/common/AppTopBar.vue'
 import maleProfile from '@/assets/images/profile/male-profile.png'
 import femaleProfile from '@/assets/images/profile/female-profile.png'
 import { useUserStore } from '@/stores/user'
-import { setAccessToken } from '@/api/httpClient'
 
 const router = useRouter()
 const userStore = useUserStore()
-
-async function logout() {
-  setAccessToken(null)
-  userStore.clear()
-  await router.replace('/login')
-}
 
 function readUserField(field: string) {
   const user: unknown = userStore.me
@@ -36,6 +29,12 @@ const profileImage = computed(() => {
   const gender = readUserField('gender')
   return gender === 'MALE' || gender === '남성' || gender === '남자' ? maleProfile : femaleProfile
 })
+
+// 토큰까지 지워야 다음 요청에 Authorization이 실리지 않는다. 이동만으로는 로그인이 유지된다.
+async function signOut() {
+  userStore.signOut()
+  await router.push('/login')
+}
 
 const displayName = computed(() => {
   const name = readUserField('name') ?? readUserField('nickname')
@@ -151,7 +150,7 @@ const menu = [
       <button
         type="button"
         class="bg-surface-muted text-ink-muted flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold"
-        @click="logout"
+        @click="signOut"
       >
         <IconLogout :size="18" />
         로그아웃
