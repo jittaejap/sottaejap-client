@@ -6,6 +6,7 @@ describe('router', () => {
   it('기본 경로와 마이페이지 설정 경로를 가진다', () => {
     expect(routes.map((r) => r.path)).toEqual([
       '/login',
+      '/auth/callback',
       '/onboarding',
       '/',
       '/chat',

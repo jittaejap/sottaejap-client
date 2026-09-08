@@ -33,13 +33,13 @@ async function startDemo() {
 }
 
 function startKakao() {
-  const clientId = import.meta.env.VITE_KAKAO_REST_API_KEY
-  if (!clientId) {
+  const clientId = import.meta.env.VITE_KAKAO_CLIENT_ID
+  const redirectUri = import.meta.env.VITE_KAKAO_REDIRECT_URI
+  if (!clientId || !redirectUri) {
     loginError.value = '카카오 로그인 설정을 확인해주세요.'
     return
   }
   const state = crypto.randomUUID()
-  const redirectUri = `${window.location.origin}/login`
   sessionStorage.setItem(kakaoStateKey, state)
   const authorize = new URL('https://kauth.kakao.com/oauth/authorize')
   authorize.searchParams.set('client_id', clientId)
@@ -56,14 +56,18 @@ onMounted(async () => {
   const state = query.get('state')
   const expectedState = sessionStorage.getItem(kakaoStateKey)
   sessionStorage.removeItem(kakaoStateKey)
-  window.history.replaceState({}, '', '/login')
+  window.history.replaceState({}, '', '/auth/callback')
   if (!state || state !== expectedState) {
     loginError.value = '카카오 로그인 요청을 확인할 수 없어요. 다시 시도해주세요.'
     return
   }
   loggingIn.value = true
   try {
-    const redirectUri = `${window.location.origin}/login`
+    const redirectUri = import.meta.env.VITE_KAKAO_REDIRECT_URI
+    if (!redirectUri) {
+      loginError.value = '카카오 로그인 설정을 확인해주세요.'
+      return
+    }
     await finishLogin((await loginKakao(code, redirectUri)).accessToken)
   } catch {
     setAccessToken(null)

@@ -4,6 +4,11 @@ import { createRouter, createWebHistory } from 'vue-router'
 export const routes = [
   { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') }, // 1L
   {
+    path: '/auth/callback',
+    name: 'auth-callback',
+    component: () => import('@/views/LoginView.vue'),
+  }, // 카카오 OAuth 콜백 — 화면 없음
+  {
     path: '/onboarding',
     name: 'onboarding',
     component: () => import('@/views/OnboardingView.vue'),
