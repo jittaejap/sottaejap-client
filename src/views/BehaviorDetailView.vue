@@ -138,8 +138,7 @@ function openTransactions() {
             </p>
             <p class="text-ink mt-2 text-lg font-extrabold">{{ leadingSatisfactionText }}</p>
             <p class="text-ink-muted mt-1 text-[10px]">
-              만족 {{ satisfactionCounts.HIGH }}건 · 불만족 {{ satisfactionCounts.LOW }}건 ·
-              모르겠어요 {{ satisfactionCounts.UNKNOWN }}건
+              만족 {{ satisfactionCounts.HIGH }}건 · 모르겠어요 {{ satisfactionCounts.UNKNOWN }}건
             </p>
           </button>
           <button
