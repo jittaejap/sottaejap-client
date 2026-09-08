@@ -25,6 +25,7 @@ export interface ChatEntry {
 
 export const useChatStore = defineStore('chat', () => {
   const activeMode = ref<ChatMode>('retrospect')
+  const analysisTimelineBreak = ref(0)
   const steps = reactive<Record<ChatMode, ChatStep>>({
     retrospect: 'menu',
     analysis: 'menu',
@@ -52,7 +53,8 @@ export const useChatStore = defineStore('chat', () => {
     histories.retrospect.splice(0)
     histories.analysis.splice(0)
     histories.qna.splice(0)
+    analysisTimelineBreak.value = 0
   }
 
-  return { activeMode, steps, histories, activate, addMessage, reset }
+  return { activeMode, analysisTimelineBreak, steps, histories, activate, addMessage, reset }
 })

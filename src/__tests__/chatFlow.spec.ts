@@ -169,4 +169,26 @@ describe('AI채팅 회고 흐름', () => {
     expect(wrapper.text()).toContain('회고 마무리하기')
     expect(wrapper.text()).not.toContain('AI가 분석한 최적의 추천 빈도')
   })
+
+  it('소비 분석 결과와 안내 뒤에 후속 질문과 응답을 시간순으로 표시한다', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    const input = wrapper.find('input[placeholder="궁금한 내용을 입력해 주세요"]')
+    await input.setValue('비상금은 얼마나 모아야 하나요?')
+    await input.trigger('keyup.enter')
+
+    const text = wrapper.text()
+    const introIndex = text.indexOf('이번 달 소비 패턴을 분석했어요')
+    const analysisIndex = text.indexOf('AI가 분석한 당신의')
+    const guideIndex = text.indexOf('금융에 대해 궁금한 게 있다면')
+    const questionIndex = text.indexOf('비상금은 얼마나 모아야 하나요?')
+    const replyIndex = text.indexOf('소비 분석에 대한 질문을 확인했어요')
+
+    expect(introIndex).toBeGreaterThanOrEqual(0)
+    expect(analysisIndex).toBeGreaterThan(introIndex)
+    expect(guideIndex).toBeGreaterThan(analysisIndex)
+    expect(questionIndex).toBeGreaterThan(guideIndex)
+    expect(replyIndex).toBeGreaterThan(questionIndex)
+  })
 })
