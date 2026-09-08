@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-import type { UserMe } from '@/api/types'
+vi.mock('@/api/service', () => ({ getCurrentUser: vi.fn() }))
+
+import { getCurrentUser } from '@/api/service'
 import router, { entryRedirect } from '@/router'
 import { useUserStore } from '@/stores/user'
 
@@ -57,10 +59,10 @@ describe('라우터에 가드가 실제로 붙어 있다', () => {
   })
 
   it('로그인하고 온보딩까지 마치면 /me가 그대로 열린다', async () => {
+    // 스토어 값을 손으로 세우면 httpClient의 토큰과 어긋난다. 실제 로그인 경로를 탄다.
+    vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
     setActivePinia(createPinia())
-    const store = useUserStore()
-    store.accessToken = 'test-token'
-    store.me = { onboardingCompleted: true } as UserMe
+    await useUserStore().signIn('test-token')
 
     await router.push('/me')
     await router.isReady()

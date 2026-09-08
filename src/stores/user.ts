@@ -41,7 +41,12 @@ export const useUserStore = defineStore('user', () => {
    * 진입 분기가 다시 2-1 온보딩으로 되돌린다.
    */
   function markOnboardingCompleted() {
-    if (me.value === null) return
+    if (me.value === null) {
+      // 가드가 me 없이 온보딩에 머무는 것을 막으므로 지금은 도달하지 않는다.
+      // 도달했다면 signIn()과 가드 중 한쪽이 깨진 것이다.
+      if (import.meta.env.DEV) console.warn('[user] me 없이 온보딩 완료를 호출했다')
+      return
+    }
     me.value = { ...me.value, onboardingCompleted: true }
   }
 
@@ -54,7 +59,6 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     me,
-    accessToken,
     signedIn,
     onboardingCompleted,
     signIn,

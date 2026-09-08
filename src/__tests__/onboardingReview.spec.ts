@@ -115,7 +115,7 @@ describe('온보딩 표본 회고', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()
-    const wrapper = mount(OnboardingView, { global: { plugins: [router] } })
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
 
     await click(wrapper, '다음 단계로')
     await selectUpload(wrapper)

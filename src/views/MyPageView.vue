@@ -33,7 +33,7 @@ const profileImage = computed(() => {
 // 토큰까지 지워야 다음 요청에 Authorization이 실리지 않는다. 이동만으로는 로그인이 유지된다.
 async function signOut() {
   userStore.signOut()
-  await router.push('/login')
+  await router.replace('/login')
 }
 
 const displayName = computed(() => {
