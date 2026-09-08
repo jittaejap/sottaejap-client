@@ -4,6 +4,16 @@ import { RouterView } from 'vue-router'
 
 <template>
   <div class="mx-auto h-dvh max-w-[390px] overflow-hidden">
-    <RouterView />
+    <RouterView v-slot="{ Component, route }">
+      <Transition
+        name="page"
+        mode="out-in"
+      >
+        <component
+          :is="Component"
+          :key="route.path"
+        />
+      </Transition>
+    </RouterView>
   </div>
 </template>
