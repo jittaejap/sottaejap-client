@@ -2,7 +2,13 @@
 import { ref } from 'vue'
 import { IconArrowUp, IconChartBar, IconPencil, IconQuestionMark } from '@tabler/icons-vue'
 
-withDefaults(defineProps<{ shortcuts?: boolean }>(), { shortcuts: true })
+withDefaults(
+  defineProps<{
+    shortcuts?: boolean
+    activeShortcut?: 'retrospect' | 'analysis' | 'qna'
+  }>(),
+  { shortcuts: true, activeShortcut: 'retrospect' },
+)
 
 const emit = defineEmits<{
   send: [text: string]
@@ -27,7 +33,13 @@ function send() {
     >
       <button
         type="button"
-        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
+        class="flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
+        :class="
+          activeShortcut === 'retrospect'
+            ? 'border-brand bg-brand-soft text-brand'
+            : 'border-line text-ink'
+        "
+        :aria-pressed="activeShortcut === 'retrospect'"
         @click="emit('shortcut', 'retrospect')"
       >
         <IconPencil
@@ -38,7 +50,13 @@ function send() {
       </button>
       <button
         type="button"
-        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
+        class="flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
+        :class="
+          activeShortcut === 'analysis'
+            ? 'border-brand bg-brand-soft text-brand'
+            : 'border-line text-ink'
+        "
+        :aria-pressed="activeShortcut === 'analysis'"
         @click="emit('shortcut', 'analysis')"
       >
         <IconChartBar
@@ -49,7 +67,13 @@ function send() {
       </button>
       <button
         type="button"
-        class="border-line text-ink flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
+        class="flex flex-1 items-center justify-center gap-1 rounded-full border py-2 text-[11px] font-semibold"
+        :class="
+          activeShortcut === 'qna'
+            ? 'border-brand bg-brand-soft text-brand'
+            : 'border-line text-ink'
+        "
+        :aria-pressed="activeShortcut === 'qna'"
         @click="emit('shortcut', 'qna')"
       >
         <IconQuestionMark

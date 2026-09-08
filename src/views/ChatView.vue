@@ -40,26 +40,25 @@ import happyAvatar from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import cheerAvatar from '@/assets/images/ai/07_cheer_hat.png'
 import thinkingAvatar from '@/assets/images/ai/05_thinking_hat.png'
 import searchAvatar from '@/assets/images/ai/09_search_hat.png'
+import { useChatStore, type ChatStep } from '@/stores/chat'
 
 const route = useRoute()
 const router = useRouter()
+const chatStore = useChatStore()
 
-type Step =
-  | 'menu'
-  | 'candidate'
-  | 'pick'
-  | 'qaSatisfaction'
-  | 'qaPurpose'
-  | 'qaCompanion'
-  | 'qaRepeat'
-  | 'wrapup'
-  | 'improvement'
-  | 'allocate'
-  | 'analysis'
-  | 'qna'
+if (route.query.step === 'improvement') {
+  chatStore.activate('analysis')
+  chatStore.steps.analysis = 'improvement'
+}
 
-const step = ref<Step>(route.query.step === 'improvement' ? 'improvement' : 'menu')
-const history = ref<{ role: 'ai' | 'user'; text: string; avatar?: string }[]>([])
+const activeMode = computed(() => chatStore.activeMode)
+const step = computed<ChatStep>({
+  get: () => chatStore.steps[activeMode.value],
+  set: (value) => {
+    chatStore.steps[activeMode.value] = value
+  },
+})
+const history = computed(() => chatStore.histories[activeMode.value])
 const thread = useTemplateRef<HTMLElement>('thread')
 
 const activeAvatar = computed(() => {
@@ -72,7 +71,11 @@ const activeAvatar = computed(() => {
 })
 
 function say(role: 'ai' | 'user', text: string, avatar?: string) {
-  history.value.push({ role, text, avatar: role === 'ai' ? avatar : undefined })
+  chatStore.addMessage(activeMode.value, {
+    role,
+    text,
+    avatar: role === 'ai' ? avatar : undefined,
+  })
 }
 
 watch(
@@ -260,17 +263,23 @@ const behaviorSummary = [
   },
 ]
 function startRetrospect() {
+  chatStore.activate('retrospect')
+  if (chatStore.steps.retrospect !== 'menu' || chatStore.histories.retrospect.length > 0) return
   say('user', '회고를 등록하고 싶어요!')
   step.value = 'candidate'
 }
 
 function startAnalysis() {
+  chatStore.activate('analysis')
+  if (chatStore.steps.analysis !== 'menu' || chatStore.histories.analysis.length > 0) return
   say('user', '제 소비를 분석해주세요')
   say('ai', '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.', qnaImage)
   step.value = 'analysis'
 }
 
 function startQna() {
+  chatStore.activate('qna')
+  if (chatStore.steps.qna !== 'menu' || chatStore.histories.qna.length > 0) return
   say('user', '금융 지식이 궁금해요')
   say('ai', '무엇이든 물어보세요! 예금·적금, 신용점수, 예산 관리처럼 궁금한 주제를 입력해 주세요.')
   step.value = 'qna'
@@ -284,10 +293,13 @@ function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
 
 function onSend(text: string) {
   say('user', text)
-  say(
-    'ai',
-    '메시지를 확인했어요! 아래 버튼으로 회고 등록이나 소비 분석을 바로 시작할 수도 있어요 😊',
-  )
+  if (activeMode.value === 'qna') {
+    say('ai', '좋은 질문이에요! 금융 Q&A 답변을 준비하고 있어요. 이 대화는 금융 Q&A에만 저장돼요.')
+  } else if (activeMode.value === 'analysis') {
+    say('ai', '소비 분석에 대한 질문을 확인했어요. 현재 분석 맥락에서 이어서 살펴볼게요.')
+  } else {
+    say('ai', '회고 내용을 확인했어요. 현재 거래에 대한 회고로 이어서 기록할게요.')
+  }
 }
 
 function acceptCandidate() {
@@ -319,7 +331,7 @@ function startQa() {
   step.value = 'qaSatisfaction'
 }
 
-function answer(question: string, value: string, nextStep: Step) {
+function answer(question: string, value: string, nextStep: ChatStep) {
   say('ai', question, thinkingAvatar)
   say('user', value)
   step.value = nextStep
@@ -328,14 +340,26 @@ function answer(question: string, value: string, nextStep: Step) {
 function finishRetrospect() {
   reasonExpanded.value = false
   say('user', '회고 마무리하기')
-  say('ai', '회고를 바탕으로 행동 조정안을 정리해봤어요.', searchAvatar)
+  say('ai', '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.', happyAvatar)
+  chatStore.activate('analysis')
+  if (chatStore.histories.analysis.length === 0) {
+    say('ai', '방금 마친 회고를 바탕으로 행동 조정안을 정리해봤어요.', searchAvatar)
+  }
   step.value = 'improvement'
 }
 
 function rejectSuggestion() {
   say('user', '제안을 거절할게요')
   say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂', aiSmallAvatarImage)
-  step.value = 'menu'
+  step.value = 'analysis'
+}
+
+function answerFinance(value: string) {
+  say('user', value)
+  say(
+    'ai',
+    '좋은 질문이에요! 아직 준비 중인 답변이라, 곧 더 자세한 설명을 드릴 수 있도록 학습하고 있어요 🙂',
+  )
 }
 
 function confirmAllocate() {
@@ -348,7 +372,7 @@ function confirmAllocate() {
 <template>
   <div class="flex h-full flex-col">
     <AppTopBar
-      :title="step === 'analysis' ? '소비 분석' : 'AI 채팅'"
+      title="AI 채팅"
       bell
       bell-dot
     />
@@ -998,22 +1022,13 @@ function confirmAllocate() {
             '신용점수는 어떻게 관리하나요?',
             '월 예산은 어떻게 잡나요?',
           ]"
-          @pick="
-            (v) => {
-              say('user', v)
-              say(
-                'ai',
-                '좋은 질문이에요! 아직 준비 중인 답변이라, 곧 더 자세한 설명을 드릴 수 있도록 학습하고 있어요 🙂',
-              )
-              step = 'menu'
-            }
-          "
+          @pick="answerFinance"
         />
       </template>
     </main>
 
     <ChatComposer
-      :shortcuts="step !== 'menu'"
+      :active-shortcut="activeMode"
       @send="onSend"
       @shortcut="onShortcut"
     />
