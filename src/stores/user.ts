@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { setAccessToken } from '@/api/httpClient'
 import { getCurrentUser } from '@/api/service'
 import type { UserMe } from '@/api/types'
+import { useChatStore } from '@/stores/chat'
 
 export const useUserStore = defineStore('user', () => {
   /** `GET /users/me` 결과. 로그인 전이나 로그아웃 후에는 null. */
@@ -50,11 +51,12 @@ export const useUserStore = defineStore('user', () => {
     me.value = { ...me.value, onboardingCompleted: true }
   }
 
-  /** 로그아웃. 토큰을 httpClient에서도 지워야 다음 요청에 Authorization이 실리지 않는다. */
+  /** 로그아웃. 인증정보와 사용자별 메모리 상태를 함께 지워 계정 간 데이터가 섞이지 않게 한다. */
   function signOut() {
     accessToken.value = null
     setAccessToken(null)
     me.value = null
+    useChatStore().reset()
   }
 
   return {
