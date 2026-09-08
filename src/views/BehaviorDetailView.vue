@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IconBell,
@@ -14,23 +14,24 @@ import AppTopBar from '@/components/common/AppTopBar.vue'
 import CategoryIcon from '@/components/common/category-icon.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
 import type { Satisfaction } from '@/api/enums'
-import { reviewsForBehavior } from '@/data/behavior-reviews'
+import { getBehavior } from '@/api/service'
+import type { BehaviorDetail } from '@/api/types'
 const route = useRoute()
 const router = useRouter()
-const behavior = computed(() =>
-  typeof route.query.behavior === 'string' ? route.query.behavior : '심야 배달',
-)
+const behaviorId = computed(() => Number(route.params.behaviorId))
+const serverDetail = ref<BehaviorDetail | null>(null)
+const behavior = computed(() => serverDetail.value?.behavior.name ?? '')
 const detail = computed(() => ({
   name: behavior.value,
   description:
     behavior.value === '심야 배달' ? '밤 늦게 시키는 배달 음식' : '최근 30일 기준 소비 행동이에요',
-  total: 92_000,
-  count: 4,
+  total: serverDetail.value?.behavior.monthlyTotalAmount ?? 0,
+  count: serverDetail.value?.behavior.txCount ?? 0,
 }))
-const reviews = computed(() => reviewsForBehavior(behavior.value))
+const reviews = computed(() => serverDetail.value?.transactions ?? [])
 const satisfactionCounts = computed<Record<Satisfaction, number>>(() => {
   const counts = { HIGH: 0, LOW: 0, UNKNOWN: 0 }
-  for (const review of reviews.value) counts[review.satisfaction] += 1
+  counts.UNKNOWN = reviews.value.length
   return counts
 })
 const satisfactionLabels: Record<Satisfaction, string> = {
@@ -51,8 +52,11 @@ const leadingSatisfactionText = computed(() =>
         .join(' · '),
 )
 function openReviews() {
-  void router.push({ name: 'behavior-reviews', query: { behavior: behavior.value } })
+  void router.push({ name: 'behavior-reviews', params: { behaviorId: behaviorId.value } })
 }
+onMounted(async () => {
+  if (Number.isInteger(behaviorId.value)) serverDetail.value = await getBehavior(behaviorId.value)
+})
 function openActionPlan() {
   void router.push({ name: 'chat', query: { step: 'improvement', behavior: behavior.value } })
 }

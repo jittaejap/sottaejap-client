@@ -23,7 +23,7 @@ import WeeklyTrendChart from '@/components/common/WeeklyTrendChart.vue'
 import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
 import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
 import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
-import savingsImage from '@/assets/images/절감액이미지 .png'
+import savingsImage from '@/assets/images/savings-summary.png'
 import { useMapStore } from '@/stores/map'
 
 const router = useRouter()

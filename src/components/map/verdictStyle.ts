@@ -48,7 +48,7 @@ export const VERDICT_SOFT_BG_CLASS: Record<VerdictTone, string> = {
 export const VERDICT_BADGE: Record<VerdictTone, string | null> = {
   sustain: '지켜요',
   adjust: '바꿔볼까요',
-  pending: '아직 판단하기 일러요',
+  pending: null,
 }
 
 /**
@@ -56,8 +56,8 @@ export const VERDICT_BADGE: Record<VerdictTone, string | null> = {
  * 문구는 표시용일 뿐이고 색을 정하는 데 쓰지 않는다 (FR-07-02).
  */
 export const PRESCRIPTION_LABEL = {
-  PROTECT: 'Awesome!',
-  KEEP: 'Great!',
+  PROTECT: 'Great!',
+  KEEP: 'Awesome!!',
   MINOR: 'Umm...',
   PRIORITY: 'Hmm...!',
   PENDING: '아직 판단하기 일러요',

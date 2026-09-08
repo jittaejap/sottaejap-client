@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+
+vi.mock('@/api/service', () => ({
+  uploadTransactions: vi.fn().mockResolvedValue({
+    importedCount: 142,
+    skippedCount: 1,
+    periodFrom: '2026-06-01',
+    periodTo: '2026-08-31',
+    skippedRows: [{ row: 17, reason: '날짜 형식 오류' }],
+  }),
+}))
 
 import TransactionsView from '@/views/TransactionsView.vue'
 
@@ -33,8 +43,16 @@ describe('거래내역 추가 업로드', () => {
 
     expect(wrapper.text()).toContain('my-card-history.xlsx')
     expect(wrapper.text()).toContain('2.3 MB')
+    expect(wrapper.text()).not.toContain('2. 파싱 결과 확인')
+
+    const uploadButton = wrapper.findAll('button').find((item) => item.text() === '업로드 완료')
+    if (!uploadButton) throw new Error('업로드 완료 버튼을 찾지 못했다.')
+    await uploadButton.trigger('click')
+    await flushPromises()
+
     expect(wrapper.text()).toContain('2. 파싱 결과 확인')
-    expect(wrapper.text()).toContain('정상 처리')
+    expect(wrapper.text()).toContain('142건')
+    expect(wrapper.text()).toContain('17행: 날짜 형식 오류')
 
     await wrapper.get('button[aria-label="파일 제거"]').trigger('click')
     expect(wrapper.text()).not.toContain('my-card-history.xlsx')

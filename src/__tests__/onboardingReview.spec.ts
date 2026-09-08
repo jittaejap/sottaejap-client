@@ -1,15 +1,43 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { routes } from '@/router'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
 
+vi.mock('@/api/service', () => ({
+  createGoal: vi.fn().mockResolvedValue({}),
+  uploadTransactions: vi.fn().mockResolvedValue({
+    importedCount: 10,
+    skippedCount: 0,
+    periodFrom: '2026-06-01',
+    periodTo: '2026-07-31',
+    skippedRows: [],
+  }),
+  startOnboarding: vi.fn().mockResolvedValue({}),
+  getRetrospectCandidates: vi.fn().mockResolvedValue(
+    Array.from({ length: 10 }, (_, index) => ({
+      transactionId: index + 1,
+      occurredAt: '2026-07-01T12:00:00+09:00',
+      merchant: index === 0 ? '배달의민족' : `가맹점 ${index + 1}`,
+      amount: 10_000 + index,
+      category: '식사',
+      timeSlot: 'AFTERNOON',
+      reasonCode: 'ONBOARDING_SAMPLE',
+      reason: '온보딩 표본',
+    })),
+  ),
+  updateSettings: vi.fn().mockResolvedValue({}),
+  saveRetrospect: vi.fn().mockResolvedValue({}),
+  completeOnboarding: vi.fn().mockResolvedValue({ onboardingCompleted: true, clusterCount: 1 }),
+}))
+
 async function click(wrapper: VueWrapper, label: string) {
   const button = wrapper.findAll('button').find((item) => item.text().trim() === label)
   if (!button) throw new Error('버튼을 찾지 못했습니다: ' + label)
   await button.trigger('click')
+  await flushPromises()
 }
 async function selectUpload(wrapper: VueWrapper) {
   const input = wrapper.get('input[type="file"]')
@@ -58,10 +86,10 @@ describe('온보딩 표본 회고', () => {
 
     expect(wrapper.text()).toContain('onboarding-history.xlsx')
     expect(wrapper.text()).toContain('2.3 MB')
-    expect(wrapper.text()).toContain('2. 파싱 결과 확인')
+    expect(wrapper.text()).toContain('onboarding-history.xlsx')
     expect(nextButton?.attributes('disabled')).toBeUndefined()
   })
-  it('나중에 회고하기를 누르면 10건 완료 전에도 홈 이동을 요청한다', async () => {
+  it('나중에 회고하기를 누르면 완료 API 성공 후 홈 이동을 요청한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()

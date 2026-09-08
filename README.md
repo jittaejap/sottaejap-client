@@ -4,7 +4,7 @@
 
 ## 시작하기
 
-Node 24.20.0을 씁니다 (`.node-version`). 설치는 `myDocs/07_기술스택_레포구성.md` §5-4를 따릅니다.
+Node 24.20.0을 씁니다 (`.node-version`). 설치는 `sottaejap-docs/07_기술스택_레포구성.md` §5-4를 따릅니다.
 
 ```bash
 cp .env.example .env        # Windows: Copy-Item .env.example .env

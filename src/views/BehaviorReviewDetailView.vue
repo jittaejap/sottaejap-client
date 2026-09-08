@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Satisfaction } from '@/api/enums'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
@@ -7,13 +7,14 @@ import AppFilterDropdown from '@/components/common/AppFilterDropdown.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import CategoryIcon from '@/components/common/category-icon.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
-import { reviewsForBehavior } from '@/data/behavior-reviews'
+import { getBehavior } from '@/api/service'
+import type { BehaviorDetail } from '@/api/types'
 
 const route = useRoute()
 const router = useRouter()
-const behavior = computed(() =>
-  typeof route.query.behavior === 'string' ? route.query.behavior : '심야 배달',
-)
+const behaviorId = computed(() => Number(route.params.behaviorId))
+const serverDetail = ref<BehaviorDetail | null>(null)
+const behavior = computed(() => serverDetail.value?.behavior.name ?? '')
 const satisfaction = ref<'ALL' | Satisfaction>('ALL')
 const period = ref('최근 3개월')
 const sort = ref('최근 완료')
@@ -32,7 +33,20 @@ const sortOptions = [
   { value: '최근 완료', label: '최근 완료' },
   { value: '오래된 순', label: '오래된 순' },
 ] as const
-const reviews = computed(() => reviewsForBehavior(behavior.value))
+const reviews = computed<
+  { merchant: string; amount: number; at: string; satisfaction: Satisfaction; purpose: string }[]
+>(() =>
+  (serverDetail.value?.transactions ?? []).map((transaction) => ({
+    merchant: transaction.merchant,
+    amount: transaction.amount,
+    at: new Intl.DateTimeFormat('ko-KR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(transaction.occurredAt)),
+    satisfaction: 'UNKNOWN',
+    purpose: transaction.category,
+  })),
+)
 const satisfactionMeta: Record<Satisfaction, { label: string; badge: string }> = {
   HIGH: { label: '만족했어요', badge: 'bg-success-soft text-success' },
   LOW: { label: '별로예요', badge: 'bg-brand-soft text-brand' },
@@ -44,6 +58,9 @@ const filteredReviews = computed(() =>
     : reviews.value.filter((review) => review.satisfaction === satisfaction.value),
 )
 const total = computed(() => filteredReviews.value.reduce((sum, item) => sum + item.amount, 0))
+onMounted(async () => {
+  if (Number.isInteger(behaviorId.value)) serverDetail.value = await getBehavior(behaviorId.value)
+})
 </script>
 
 <template>

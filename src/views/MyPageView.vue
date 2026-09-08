@@ -12,8 +12,8 @@ import {
 
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
-import maleProfile from '@/assets/images/profile/남자프로필.png'
-import femaleProfile from '@/assets/images/profile/여자프로필.png'
+import maleProfile from '@/assets/images/profile/male-profile.png'
+import femaleProfile from '@/assets/images/profile/female-profile.png'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()

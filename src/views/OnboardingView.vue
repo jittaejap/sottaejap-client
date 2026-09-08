@@ -23,6 +23,16 @@ import goalIndependence from '@/assets/images/onboarding/goal-independence.png'
 import goalTravel from '@/assets/images/onboarding/goal-travel.png'
 import assistantHappy from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import assistantThinking from '@/assets/images/ai/05_thinking_hat.png'
+import {
+  completeOnboarding,
+  createGoal,
+  getRetrospectCandidates,
+  saveRetrospect,
+  startOnboarding,
+  updateSettings,
+  uploadTransactions,
+} from '@/api/service'
+import type { Satisfaction } from '@/api/enums'
 
 const router = useRouter()
 
@@ -53,7 +63,11 @@ const goalAmount = ref(3_000_000)
 const goalDueDate = ref(initialGoalDueDate())
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
+const selectedFile = ref<File | null>(null)
 const uploadError = ref('')
+const saving = ref(false)
+const saveError = ref('')
+const savedSteps = new Set<number>()
 
 function formatUploadSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -71,6 +85,7 @@ function attachUpload(file?: File) {
   }
 
   uploadedFile.value = { name: file.name, size: formatUploadSize(file.size) }
+  selectedFile.value = file
   uploadError.value = ''
 }
 
@@ -84,12 +99,12 @@ function onUploadDrop(event: DragEvent) {
 
 function removeUpload() {
   uploadedFile.value = null
+  selectedFile.value = null
   uploadError.value = ''
   if (onboardingFileInput.value) onboardingFileInput.value.value = ''
 }
 const monthlyBudget = ref(2_500_000)
 const sensitivity = ref<'RELAXED' | 'BALANCED' | 'DETAILED'>('BALANCED')
-const customAmount = ref(100_000)
 
 type ReviewStage = 'satisfaction' | 'purpose' | 'companion' | 'repeat' | 'complete'
 type ReviewAnswer = {
@@ -105,7 +120,7 @@ type ReviewRecord = {
   messages: ReviewMessage[]
 }
 
-const reviewTransactions = [
+const reviewTransactions = ref([
   {
     id: 1,
     badge: '배민',
@@ -172,7 +187,7 @@ const reviewTransactions = [
     when: '월요일 13:20',
     tags: ['카페'],
   },
-] as const
+])
 
 const reviewIndex = ref(0)
 const reviewStage = ref<ReviewStage>('satisfaction')
@@ -189,12 +204,14 @@ function scrollCalendarIntoView(isOpen: boolean) {
     }
   })
 }
-const currentReviewTransaction = computed(() => reviewTransactions[reviewIndex.value]!)
+const currentReviewTransaction = computed(() => reviewTransactions.value[reviewIndex.value]!)
 const completedReviewCount = computed(() => reviewRecords.value.length)
 const reviewProgress = computed(
-  () => (completedReviewCount.value / reviewTransactions.length) * 100,
+  () => (completedReviewCount.value / reviewTransactions.value.length) * 100,
 )
-const allReviewsComplete = computed(() => completedReviewCount.value === reviewTransactions.length)
+const allReviewsComplete = computed(
+  () => completedReviewCount.value === reviewTransactions.value.length,
+)
 const reviewOptions = computed<readonly string[]>(() => {
   if (reviewStage.value === 'satisfaction') return ['만족했어요', '별로예요', '잘 모르겠어요']
   if (reviewStage.value === 'purpose')
@@ -231,7 +248,7 @@ function beginReview() {
   ]
 }
 
-function answerReview(value: string) {
+async function answerReview(value: string) {
   if (reviewStage.value === 'complete') return
   reviewMessages.value.push({ role: 'user', text: value })
 
@@ -246,13 +263,34 @@ function answerReview(value: string) {
     reviewStage.value = 'repeat'
   } else {
     reviewAnswers.value.repeat = value
-    reviewStage.value = 'complete'
-    reviewMessages.value.push({ role: 'ai', text: '좋아요! 회고가 완료됐어요 👏' })
-    reviewRecords.value.push({
-      transactionId: currentReviewTransaction.value.id,
-      answers: { ...reviewAnswers.value },
-      messages: reviewMessages.value.map((message) => ({ ...message })),
-    })
+    saving.value = true
+    saveError.value = ''
+    try {
+      const satisfactionMap: Record<string, Satisfaction> = {
+        만족했어요: 'HIGH',
+        별로예요: 'LOW',
+        '잘 모르겠어요': 'UNKNOWN',
+      }
+      await saveRetrospect({
+        transactionId: currentReviewTransaction.value.id,
+        satisfaction: satisfactionMap[reviewAnswers.value.satisfaction ?? ''] ?? 'UNKNOWN',
+        purpose: reviewAnswers.value.purpose ?? '기타',
+        companion: reviewAnswers.value.companion ?? '기타',
+        repeatIntent: value === '네',
+        source: 'CANDIDATE',
+      })
+      reviewStage.value = 'complete'
+      reviewMessages.value.push({ role: 'ai', text: '좋아요! 회고가 완료됐어요 👏' })
+      reviewRecords.value.push({
+        transactionId: currentReviewTransaction.value.id,
+        answers: { ...reviewAnswers.value },
+        messages: reviewMessages.value.map((message) => ({ ...message })),
+      })
+    } catch {
+      saveError.value = '회고를 저장하지 못했어요. 다시 시도해주세요.'
+    } finally {
+      saving.value = false
+    }
     return
   }
 
@@ -262,11 +300,25 @@ function answerReview(value: string) {
 async function continueReviews() {
   if (reviewStage.value !== 'complete') return
   if (allReviewsComplete.value) {
-    await router.push('/')
+    await finishOnboarding()
     return
   }
   reviewIndex.value += 1
   beginReview()
+}
+
+async function finishOnboarding() {
+  if (saving.value) return
+  saving.value = true
+  saveError.value = ''
+  try {
+    await completeOnboarding()
+    await router.push('/')
+  } catch {
+    saveError.value = '온보딩을 완료하지 못했어요. 다시 시도해주세요.'
+  } finally {
+    saving.value = false
+  }
 }
 
 watch(
@@ -322,10 +374,59 @@ function onGoalNameInput(event: Event) {
   goalName.value = sanitized
   input.value = sanitized
 }
-function next() {
+async function next() {
   if (step.value >= totalSteps) return
-  step.value += 1
-  if (step.value === totalSteps && reviewMessages.value.length === 0) beginReview()
+  saving.value = true
+  saveError.value = ''
+  try {
+    if (step.value === 1 && !savedSteps.has(1)) {
+      const selectedGoal = goalTypes.find((goal) => goal.value === goalType.value)
+      await createGoal({
+        name:
+          goalType.value === 'CUSTOM'
+            ? goalName.value.trim()
+            : `${selectedGoal?.label ?? '소비'} 자금`,
+        targetAmount: goalAmount.value,
+        currentAmount: 0,
+      })
+      savedSteps.add(1)
+    } else if (step.value === 2 && !savedSteps.has(2)) {
+      if (!selectedFile.value) return
+      const result = await uploadTransactions(selectedFile.value)
+      await startOnboarding({
+        sampleSize: reviewTransactions.value.length,
+        periodFrom: result.periodFrom,
+        periodTo: result.periodTo,
+      })
+      const candidates = await getRetrospectCandidates(reviewTransactions.value.length)
+      reviewTransactions.value = candidates.map((candidate) => ({
+        id: candidate.transactionId,
+        badge: candidate.merchant.slice(0, 2),
+        merchant: candidate.merchant,
+        amount: candidate.amount,
+        when: new Intl.DateTimeFormat('ko-KR', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        }).format(new Date(candidate.occurredAt)),
+        tags: [candidate.category, candidate.timeSlot],
+      }))
+      savedSteps.add(2)
+    } else if (step.value === 3 && !savedSteps.has(3)) {
+      const thresholds = { RELAXED: 3, BALANCED: 2, DETAILED: 1.5 }
+      await updateSettings({
+        monthlyBudget: monthlyBudget.value,
+        outlierThreshold: thresholds[sensitivity.value],
+        retrospectDelayDays: 1,
+      })
+      savedSteps.add(3)
+    }
+    step.value += 1
+    if (step.value === totalSteps && reviewMessages.value.length === 0) beginReview()
+  } catch {
+    saveError.value = '입력 내용을 저장하지 못했어요. 다시 시도해주세요.'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -533,35 +634,6 @@ function next() {
           <p>· 최근 12개월 이내 거래내역 파일을 권장해요.</p>
           <p>· 개인 정보는 분석 완료 후 즉시 안전하게 파기돼요.</p>
         </div>
-        <div
-          v-if="uploadedFile"
-          class="space-y-2.5"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-ink-muted text-[13px] font-bold">2. 파싱 결과 확인</p>
-            <span class="bg-success-soft text-success rounded-md px-2 py-1 text-[10px] font-bold"
-              >✓ 정상 처리</span
-            >
-          </div>
-          <div class="border-line space-y-3 rounded-2xl border p-4">
-            <p class="text-ink text-[13px] font-bold">총 1,236건의 거래내역을 불러왔어요.</p>
-            <dl class="space-y-2 text-[11px]">
-              <div
-                v-for="row in [
-                  ['거래기간', '2025.05.01 ~ 2025.05.31'],
-                  ['카드사', 'KB국민카드'],
-                  ['총 거래건수', '1,236건'],
-                  ['총 사용금액', '2,845,320원'],
-                ]"
-                :key="row[0]"
-                class="flex justify-between"
-              >
-                <dt class="text-ink-faint">{{ row[0] }}</dt>
-                <dd class="text-ink font-bold">{{ row[1] }}</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
       </section>
 
       <section
@@ -618,21 +690,6 @@ function next() {
                 :class="sensitivity === option.value ? 'bg-brand-soft text-brand' : ''"
                 >{{ option.amount }}</span
               >
-            </button>
-          </div>
-        </div>
-        <div class="space-y-2">
-          <label class="text-ink text-[13px] font-bold">기준 금액 직접 설정</label
-          ><MoneyInput v-model="customAmount" />
-          <div class="flex gap-2">
-            <button
-              v-for="amount in [50_000, 100_000, 500_000, 1_000_000]"
-              :key="amount"
-              type="button"
-              class="border-line text-ink-muted rounded-full border px-3 py-2 text-xs"
-              @click="customAmount += amount"
-            >
-              +{{ amount / 10_000 }}만원
             </button>
           </div>
         </div>
@@ -728,7 +785,8 @@ function next() {
         v-if="step === 4"
         type="button"
         class="border-brand text-ink h-[52px] flex-1 rounded-2xl border text-sm font-bold"
-        @click="router.push('/')"
+        :disabled="saving"
+        @click="finishOnboarding"
       >
         나중에 회고하기
       </button>
@@ -736,7 +794,7 @@ function next() {
         v-if="step === 4"
         type="button"
         class="bg-brand text-surface flex h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-bold disabled:opacity-40"
-        :disabled="reviewStage !== 'complete'"
+        :disabled="reviewStage !== 'complete' || saving"
         @click="continueReviews"
       >
         {{ allReviewsComplete ? '홈으로 가기' : '다음 소비 이어하기' }}
@@ -746,12 +804,19 @@ function next() {
         v-else
         type="button"
         class="bg-brand text-surface flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-base font-bold disabled:opacity-40"
-        :disabled="!canProceed"
+        :disabled="!canProceed || saving"
         @click="next"
       >
         다음 단계로
         <IconArrowRight :size="18" />
       </button>
+      <p
+        v-if="saveError"
+        role="alert"
+        class="text-brand absolute bottom-2 left-5 text-xs"
+      >
+        {{ saveError }}
+      </p>
     </footer>
   </div>
 </template>

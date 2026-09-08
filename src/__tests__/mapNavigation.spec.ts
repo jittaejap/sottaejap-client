@@ -22,8 +22,6 @@ describe('만족도 지도 이동', () => {
 
     const reviewLink = wrapper.findAll('a').find((link) => link.text().includes('더 보기'))
     if (!reviewLink) throw new Error('더 보기 링크를 찾지 못했습니다.')
-    expect(reviewLink.attributes('href')).toBe(
-      '/map/behavior/reviews?behavior=%EC%8B%AC%EC%95%BC+%EB%B0%B0%EB%8B%AC',
-    )
+    expect(reviewLink.attributes('href')).toBe('/map/behaviors/6/reviews')
   })
 })

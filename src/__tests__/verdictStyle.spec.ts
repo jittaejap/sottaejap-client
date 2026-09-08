@@ -66,7 +66,7 @@ describe('07 §8 · E-11 만족도 지도 색 규칙', () => {
     expect(VERDICT_OPACITY[verdictTone(pending)]).toBeLessThan(1)
     expect(VERDICT_DOT_CLASS[verdictTone(pending)]).not.toContain('sustain')
     expect(VERDICT_DOT_CLASS[verdictTone(pending)]).not.toContain('adjust')
-    expect(VERDICT_BADGE[verdictTone(pending)]).toBe('아직 판단하기 일러요')
+    expect(VERDICT_BADGE[verdictTone(pending)]).toBeNull()
   })
 
   it('보류 판정이 verdict보다 우선한다 — 서버가 값을 함께 보내도 회색이다', () => {

@@ -158,9 +158,9 @@ const filter = ref<string>('전체')
 
 onMounted(() => {
   mapStore.data = mockMap
-  const behavior = route.query.behavior
-  if (typeof behavior === 'string') {
-    const match = mockMap.points.find((p) => p.name === behavior)
+  const behaviorId = Number(route.params.behaviorId)
+  if (Number.isInteger(behaviorId)) {
+    const match = mockMap.points.find((p) => p.behaviorId === behaviorId)
     if (match) {
       selectedId.value = match.behaviorId
       subview.value = 'behavior'
@@ -410,7 +410,7 @@ function selectPoint(behaviorId: number) {
               <RouterLink
                 :to="{
                   name: 'behavior-reviews',
-                  query: { behavior: selected.name },
+                  params: { behaviorId: selected.behaviorId },
                 }"
                 class="text-ink-muted mt-2 flex w-full items-center justify-center gap-1 text-xs"
               >
@@ -481,7 +481,7 @@ function selectPoint(behaviorId: number) {
                 <RouterLink
                   :to="{
                     name: 'behavior-reviews',
-                    query: { behavior: selected.name },
+                    params: { behaviorId: selected.behaviorId },
                   }"
                   class="border-line bg-surface rounded-card border p-4 text-left"
                   aria-label="회고 내역 보기"

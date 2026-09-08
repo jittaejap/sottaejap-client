@@ -12,12 +12,12 @@ export const routes = [
   { path: '/chat', name: 'chat', component: () => import('@/views/ChatView.vue') }, // 3-2
   { path: '/map', name: 'map', component: () => import('@/views/MapView.vue') }, // 3-3
   {
-    path: '/map/behavior',
+    path: '/map/behaviors/:behaviorId',
     name: 'behavior-detail',
     component: () => import('@/views/BehaviorDetailView.vue'),
   }, // Screen 08 — IA 문서 반영 대기
   {
-    path: '/map/behavior/reviews',
+    path: '/map/behaviors/:behaviorId/reviews',
     name: 'behavior-reviews',
     component: () => import('@/views/BehaviorReviewDetailView.vue'),
   }, // Screen 08-02 — IA 문서 반영 대기

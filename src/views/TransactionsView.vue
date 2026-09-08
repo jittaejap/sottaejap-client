@@ -18,6 +18,8 @@ import AppFilterDropdown from '@/components/common/AppFilterDropdown.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
+import { uploadTransactions } from '@/api/service'
+import type { TransactionUploadResult } from '@/api/types'
 
 const route = inject(routeLocationKey, null)
 const tabs = ['거래내역', '추가 업로드', '회고 이력'] as const
@@ -153,7 +155,10 @@ const filteredTransactions = computed(() => {
 
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
+const selectedFile = ref<File | null>(null)
 const fileError = ref('')
+const uploadResult = ref<TransactionUploadResult | null>(null)
+const uploading = ref(false)
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -171,6 +176,8 @@ function attachFile(file?: File) {
   }
 
   uploadedFile.value = { name: file.name, size: formatFileSize(file.size) }
+  selectedFile.value = file
+  uploadResult.value = null
   fileError.value = ''
 }
 
@@ -184,16 +191,36 @@ function onFileDrop(event: DragEvent) {
 
 function removeFile() {
   uploadedFile.value = null
+  selectedFile.value = null
+  uploadResult.value = null
   fileError.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
-const parseResult = [
-  { label: '거래기간', value: '2025.05.01 ~ 2025.05.31' },
-  { label: '카드사', value: 'KB국민카드' },
-  { label: '총 거래건수', value: '1,236건' },
-  { label: '총 사용금액', value: '2,845,320원' },
-]
+const parseResult = computed(() => {
+  if (!uploadResult.value) return []
+  return [
+    {
+      label: '거래기간',
+      value: `${uploadResult.value.periodFrom} ~ ${uploadResult.value.periodTo}`,
+    },
+    { label: '정상 처리', value: `${uploadResult.value.importedCount.toLocaleString('ko-KR')}건` },
+    { label: '건너뜀', value: `${uploadResult.value.skippedCount.toLocaleString('ko-KR')}건` },
+  ]
+})
+
+async function submitUpload() {
+  if (!selectedFile.value || uploading.value) return
+  uploading.value = true
+  fileError.value = ''
+  try {
+    uploadResult.value = await uploadTransactions(selectedFile.value)
+  } catch {
+    fileError.value = '거래내역을 업로드하지 못했어요. 파일을 확인하고 다시 시도해주세요.'
+  } finally {
+    uploading.value = false
+  }
+}
 
 const satisfactionMeta: Record<
   Satisfaction,
@@ -470,7 +497,7 @@ const retrospectHistory = [
             </div>
 
             <div
-              v-if="uploadedFile"
+              v-if="uploadResult"
               class="space-y-2"
             >
               <div class="flex items-center justify-between">
@@ -482,7 +509,10 @@ const retrospectHistory = [
                 </span>
               </div>
               <div class="bg-surface-muted rounded-2xl p-4">
-                <p class="text-ink font-bold">총 1,236건의 거래내역을 불러왔어요.</p>
+                <p class="text-ink font-bold">
+                  총 {{ uploadResult.importedCount.toLocaleString('ko-KR') }}건의 거래내역을
+                  불러왔어요.
+                </p>
                 <p class="text-ink-muted mt-1 text-xs">
                   아래 내용을 확인하고 업로드를 완료해주세요.
                 </p>
@@ -496,9 +526,26 @@ const retrospectHistory = [
                     <dd class="text-ink text-xs font-semibold">{{ row.value }}</dd>
                   </div>
                 </dl>
+                <ul
+                  v-if="uploadResult.skippedRows.length"
+                  class="text-ink-muted mt-3 space-y-1 text-xs"
+                >
+                  <li
+                    v-for="row in uploadResult.skippedRows"
+                    :key="row.row"
+                  >
+                    {{ row.row }}행: {{ row.reason }}
+                  </li>
+                </ul>
               </div>
             </div>
-            <PrimaryButton :disabled="uploadedFile === null">업로드 완료</PrimaryButton>
+            <PrimaryButton
+              :disabled="selectedFile === null || uploading || uploadResult !== null"
+              @click="submitUpload"
+              >{{
+                uploadResult ? '업로드 완료됨' : uploading ? '업로드 중...' : '업로드 완료'
+              }}</PrimaryButton
+            >
           </template>
 
           <template v-else>
