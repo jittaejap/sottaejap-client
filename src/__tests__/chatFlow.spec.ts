@@ -81,7 +81,7 @@ describe('AI채팅 회고 흐름', () => {
     expect(wrapper.text()).toContain('이번 달 배달비가 궁금해요')
 
     await click(wrapper, '회고 등록')
-    expect(wrapper.text()).toContain('최근 결제 중 다시 돌아볼 만한 소비를 골라봤어요')
+    expect(wrapper.text()).toContain('회고 후보로 선정된 거래예요')
     expect(wrapper.text()).toContain('회고해볼게요')
   })
 
