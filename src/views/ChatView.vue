@@ -274,6 +274,7 @@ function startAnalysis() {
   if (chatStore.steps.analysis !== 'menu') return
   say('user', '제 소비를 분석해주세요')
   say('ai', '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.', qnaImage)
+  chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
 
@@ -351,6 +352,7 @@ function finishRetrospect() {
 function rejectSuggestion() {
   say('user', '제안을 거절할게요')
   say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂', aiSmallAvatarImage)
+  chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
 
@@ -365,6 +367,7 @@ function answerFinance(value: string) {
 function confirmAllocate() {
   say('user', `${selectedGoal.value.label}에 연결할게요`)
   say('ai', '마지막으로 이번 소비 상황을 요약해드릴게요.', qnaImage)
+  chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
 </script>
@@ -421,16 +424,18 @@ function confirmAllocate() {
           </span>
         </div>
       </div>
-      <template
-        v-for="(entry, index) in history"
-        :key="index"
-      >
-        <ChatBubble
-          :role="entry.role"
-          :avatar="entry.avatar"
-          :user-solid="step === 'pick'"
-          >{{ entry.text }}</ChatBubble
+      <template v-if="step !== 'analysis'">
+        <template
+          v-for="(entry, index) in history"
+          :key="index"
         >
+          <ChatBubble
+            :role="entry.role"
+            :avatar="entry.avatar"
+            :user-solid="step === 'pick'"
+            >{{ entry.text }}</ChatBubble
+          >
+        </template>
       </template>
 
       <template v-if="step === 'menu'">
@@ -941,6 +946,14 @@ function confirmAllocate() {
         </div>
       </template>
       <template v-else-if="step === 'analysis'">
+        <ChatBubble
+          v-for="(entry, index) in history.slice(0, chatStore.analysisTimelineBreak)"
+          :key="`analysis-intro-${index}`"
+          :role="entry.role"
+          :avatar="entry.avatar"
+        >
+          {{ entry.text }}
+        </ChatBubble>
         <section class="bg-surface flex flex-col gap-5 rounded-3xl p-5">
           <h2 class="text-ink text-base font-bold leading-[1.45]">
             AI가 분석한 당신의<br />소비 프로필이에요
@@ -1019,6 +1032,14 @@ function confirmAllocate() {
           :avatar="searchAvatar"
         >
           금융에 대해 궁금한 게 있다면 뭐든 편하게 물어보세요!
+        </ChatBubble>
+        <ChatBubble
+          v-for="(entry, index) in history.slice(chatStore.analysisTimelineBreak)"
+          :key="`analysis-followup-${index}`"
+          :role="entry.role"
+          :avatar="entry.avatar"
+        >
+          {{ entry.text }}
         </ChatBubble>
       </template>
       <template v-else-if="step === 'qna'">
