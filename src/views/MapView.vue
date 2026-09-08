@@ -235,322 +235,345 @@ function selectPoint(behaviorId: number) {
       :back-handler="() => (subview = subview === 'transactions' ? 'behavior' : 'map')"
     />
 
-    <main class="flex-1 space-y-4 overflow-y-auto px-4 pb-6">
-      <template v-if="subview === 'map'">
-        <p class="text-ink text-lg font-bold">만족도와 지출 부담을 함께 확인해보세요</p>
+    <main class="flex-1 overflow-y-auto px-4 pb-6">
+      <Transition
+        name="subview"
+        mode="out-in"
+      >
+        <div
+          :key="subview"
+          class="space-y-4"
+        >
+          <template v-if="subview === 'map'">
+            <p class="text-ink text-lg font-bold">만족도와 지출 부담을 함께 확인해보세요</p>
 
-        <div class="border-line rounded-2xl border p-3">
-          <div class="flex flex-wrap gap-2">
-            <button
-              type="button"
-              class="rounded-full border px-3 py-1.5 text-xs font-medium"
-              :class="
-                filter === '전체'
-                  ? 'border-brand bg-brand text-surface'
-                  : 'border-line text-ink-muted'
-              "
-              @click="filter = '전체'"
-            >
-              전체
-            </button>
-            <button
-              v-for="p in points"
-              :key="p.behaviorId"
-              type="button"
-              class="rounded-full border px-3 py-1.5 text-xs font-medium"
-              :class="filter === p.name ? 'border-brand text-brand' : 'border-line text-ink-muted'"
-              @click="((filter = p.name), selectPoint(p.behaviorId))"
-            >
-              {{ p.name }}
-            </button>
-          </div>
-
-          <div class="border-line relative mt-4 border-t pt-4">
-            <div
-              class="pointer-events-none absolute top-5 right-6 left-9 z-10 flex justify-between text-xs font-bold"
-            >
-              <span class="text-map-awesome flex items-center gap-1">
-                <IconCrown
-                  :size="17"
-                  :stroke-width="2.5"
-                />
-                {{ PRESCRIPTION_LABEL.PROTECT }}
-              </span>
-              <span class="text-map-great flex items-center gap-1">
-                <IconThumbUp
-                  :size="17"
-                  :stroke-width="2.5"
-                />
-                {{ PRESCRIPTION_LABEL.KEEP }}
-              </span>
-            </div>
-            <div
-              class="pointer-events-none absolute right-6 bottom-11 left-9 z-10 flex justify-between text-xs font-bold"
-            >
-              <span class="text-map-umm flex items-center gap-1">
-                <IconMoodNeutral
-                  :size="17"
-                  :stroke-width="2.5"
-                />
-                {{ PRESCRIPTION_LABEL.MINOR }}
-              </span>
-              <span class="text-map-hmm flex items-center gap-1">
-                <IconCircleX
-                  :size="17"
-                  :stroke-width="2.5"
-                />
-                {{ PRESCRIPTION_LABEL.PRIORITY }}
-              </span>
-            </div>
-
-            <div class="flex">
-              <div
-                class="text-ink-muted flex w-4 shrink-0 flex-col items-center justify-between py-2 text-[11px]"
-              >
-                <span>높음</span>
-                <span class="[writing-mode:vertical-rl] font-medium">{{
-                  mockMap.axisY.label
-                }}</span>
-                <span>낮음</span>
+            <div class="border-line rounded-2xl border p-3">
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="rounded-full border px-3 py-1.5 text-xs font-medium"
+                  :class="
+                    filter === '전체'
+                      ? 'border-brand bg-brand text-surface'
+                      : 'border-line text-ink-muted'
+                  "
+                  @click="filter = '전체'"
+                >
+                  전체
+                </button>
+                <button
+                  v-for="p in points"
+                  :key="p.behaviorId"
+                  type="button"
+                  class="rounded-full border px-3 py-1.5 text-xs font-medium"
+                  :class="
+                    filter === p.name ? 'border-brand text-brand' : 'border-line text-ink-muted'
+                  "
+                  @click="((filter = p.name), selectPoint(p.behaviorId))"
+                >
+                  {{ p.name }}
+                </button>
               </div>
-              <SatisfactionScatter
-                class="min-w-0 flex-1"
-                :points="visiblePoints"
-                :boundaries="mockMap.boundaries"
-                :selected-id="selectedId"
-                @select="selectPoint"
-              />
+
+              <div class="border-line relative mt-4 border-t pt-4">
+                <div
+                  class="pointer-events-none absolute top-5 right-6 left-9 z-10 flex justify-between text-xs font-bold"
+                >
+                  <span class="text-map-awesome flex items-center gap-1">
+                    <IconCrown
+                      :size="17"
+                      :stroke-width="2.5"
+                    />
+                    {{ PRESCRIPTION_LABEL.PROTECT }}
+                  </span>
+                  <span class="text-map-great flex items-center gap-1">
+                    <IconThumbUp
+                      :size="17"
+                      :stroke-width="2.5"
+                    />
+                    {{ PRESCRIPTION_LABEL.KEEP }}
+                  </span>
+                </div>
+                <div
+                  class="pointer-events-none absolute right-6 bottom-11 left-9 z-10 flex justify-between text-xs font-bold"
+                >
+                  <span class="text-map-umm flex items-center gap-1">
+                    <IconMoodNeutral
+                      :size="17"
+                      :stroke-width="2.5"
+                    />
+                    {{ PRESCRIPTION_LABEL.MINOR }}
+                  </span>
+                  <span class="text-map-hmm flex items-center gap-1">
+                    <IconCircleX
+                      :size="17"
+                      :stroke-width="2.5"
+                    />
+                    {{ PRESCRIPTION_LABEL.PRIORITY }}
+                  </span>
+                </div>
+
+                <div class="flex">
+                  <div
+                    class="text-ink-muted flex w-4 shrink-0 flex-col items-center justify-between py-2 text-[11px]"
+                  >
+                    <span>높음</span>
+                    <span class="[writing-mode:vertical-rl] font-medium">{{
+                      mockMap.axisY.label
+                    }}</span>
+                    <span>낮음</span>
+                  </div>
+                  <SatisfactionScatter
+                    class="min-w-0 flex-1"
+                    :points="visiblePoints"
+                    :boundaries="mockMap.boundaries"
+                    :selected-id="selectedId"
+                    @select="selectPoint"
+                  />
+                </div>
+
+                <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
+                  <span>낮음</span>
+                  <span class="font-medium">{{ mockMap.axisX.label }}</span>
+                  <span>높음</span>
+                </div>
+              </div>
             </div>
 
-            <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
-              <span>낮음</span>
-              <span class="font-medium">{{ mockMap.axisX.label }}</span>
-              <span>높음</span>
-            </div>
-          </div>
-        </div>
+            <AppCard v-if="selected">
+              <div class="flex items-center gap-2">
+                <span
+                  class="size-3 shrink-0 rounded-full"
+                  :class="QUADRANT_DOT_CLASS[selectedQuadrantTone]"
+                ></span>
+                <p class="text-ink font-bold">
+                  {{ selected.name }}({{ selected.retrospectCount }})
+                </p>
+                <span
+                  v-if="VERDICT_BADGE[selectedTone]"
+                  class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                  :class="[VERDICT_TEXT_CLASS[selectedTone], VERDICT_SOFT_BG_CLASS[selectedTone]]"
+                >
+                  {{ VERDICT_BADGE[selectedTone] }}
+                </span>
+              </div>
 
-        <AppCard v-if="selected">
-          <div class="flex items-center gap-2">
-            <span
-              class="size-3 shrink-0 rounded-full"
-              :class="QUADRANT_DOT_CLASS[selectedQuadrantTone]"
-            ></span>
-            <p class="text-ink font-bold">{{ selected.name }}({{ selected.retrospectCount }})</p>
-            <span
-              v-if="VERDICT_BADGE[selectedTone]"
-              class="rounded-full px-2 py-0.5 text-xs font-semibold"
-              :class="[VERDICT_TEXT_CLASS[selectedTone], VERDICT_SOFT_BG_CLASS[selectedTone]]"
-            >
-              {{ VERDICT_BADGE[selectedTone] }}
-            </span>
-          </div>
-
-          <div
-            class="divide-line border-line mt-3 grid grid-cols-3 divide-x rounded-xl border py-2 text-center"
-          >
-            <div>
-              <p class="text-ink-muted text-[11px]">평균 결제금액</p>
-              <p class="text-ink mt-0.5 text-sm font-bold">
-                {{ selected.avgAmount.toLocaleString('ko-KR') }}원
-              </p>
-            </div>
-            <div>
-              <p class="text-ink-muted text-[11px]">최근 건수</p>
-              <p class="text-ink mt-0.5 text-sm font-bold">{{ selected.txCount }}건</p>
-            </div>
-            <div>
-              <p class="text-ink-muted text-[11px]">상태</p>
-              <p class="text-ink mt-0.5 text-sm font-bold">
-                {{ selected.evaluationStatus === 'PENDING' ? '보류' : '완료' }}
-              </p>
-            </div>
-          </div>
-
-          <p class="text-ink-muted mt-3 flex gap-1.5 text-xs leading-relaxed">
-            <IconBulb
-              :size="15"
-              class="text-brand mt-0.5 shrink-0"
-            />
-            {{ selected.prescription }}
-          </p>
-
-          <div class="divide-line mt-2 divide-y">
-            <div
-              v-for="tx in transactions.slice(0, 3)"
-              :key="tx.at"
-              class="flex items-center gap-3 py-2.5"
-            >
-              <MerchantBadge
-                :name="tx.merchant"
-                size="sm"
-              />
-              <span class="flex-1">
-                <span class="text-ink block text-sm font-semibold">{{ tx.merchant }}</span>
-                <span class="text-ink-muted block text-xs">{{ tx.at }}</span>
-              </span>
-              <span class="text-ink text-sm font-bold"
-                >{{ tx.amount.toLocaleString('ko-KR') }}원</span
+              <div
+                class="divide-line border-line mt-3 grid grid-cols-3 divide-x rounded-xl border py-2 text-center"
               >
-            </div>
-          </div>
+                <div>
+                  <p class="text-ink-muted text-[11px]">평균 결제금액</p>
+                  <p class="text-ink mt-0.5 text-sm font-bold">
+                    {{ selected.avgAmount.toLocaleString('ko-KR') }}원
+                  </p>
+                </div>
+                <div>
+                  <p class="text-ink-muted text-[11px]">최근 건수</p>
+                  <p class="text-ink mt-0.5 text-sm font-bold">{{ selected.txCount }}건</p>
+                </div>
+                <div>
+                  <p class="text-ink-muted text-[11px]">상태</p>
+                  <p class="text-ink mt-0.5 text-sm font-bold">
+                    {{ selected.evaluationStatus === 'PENDING' ? '보류' : '완료' }}
+                  </p>
+                </div>
+              </div>
 
-          <button
-            type="button"
-            class="text-ink-muted mt-2 flex w-full items-center justify-center gap-1 text-xs"
-            @click="subview = 'behavior'"
-          >
-            더 보기 <IconChevronDown :size="14" />
-          </button>
-        </AppCard>
-      </template>
-
-      <template v-else-if="subview === 'behavior' && selected">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex size-14 shrink-0 items-center justify-center rounded-full"
-            :class="VERDICT_SOFT_BG_CLASS[selectedTone]"
-          >
-            <IconMoonStars
-              :size="26"
-              :stroke-width="1.5"
-              :class="VERDICT_TEXT_CLASS[selectedTone]"
-            />
-          </span>
-          <div>
-            <p class="text-ink text-lg font-bold">{{ selected.name }}</p>
-            <p class="text-ink-muted text-sm">최근 30일 기준 소비 행동이에요</p>
-          </div>
-        </div>
-
-        <div class="flex gap-2">
-          <span class="bg-surface-muted text-ink-muted rounded-full px-3 py-1 text-xs font-medium">
-            만족도 {{ selected.adjustedSatisfaction >= 0 ? '높음' : '낮음' }}
-          </span>
-          <span class="bg-surface-muted text-ink-muted rounded-full px-3 py-1 text-xs font-medium">
-            지출 부담 {{ burdenLabel }}
-          </span>
-        </div>
-
-        <div>
-          <p class="text-ink mb-2 text-sm font-semibold">핵심 지표</p>
-          <div class="grid grid-cols-2 gap-3">
-            <AppCard>
-              <p class="text-ink-muted flex items-center gap-1 text-xs">
-                <IconReceipt2 :size="14" /> 총 지출 금액
+              <p class="text-ink-muted mt-3 flex gap-1.5 text-xs leading-relaxed">
+                <IconBulb
+                  :size="15"
+                  class="text-brand mt-0.5 shrink-0"
+                />
+                {{ selected.prescription }}
               </p>
-              <p class="text-ink mt-1 text-xl font-extrabold">
-                {{ selected.monthlyTotalAmount.toLocaleString('ko-KR') }}원
-              </p>
-              <p class="text-ink-muted text-[11px]">최근 30일</p>
-            </AppCard>
-            <AppCard>
-              <p class="text-ink-muted flex items-center gap-1 text-xs">
-                <IconPencil :size="14" /> 이용 횟수
-              </p>
-              <p class="text-ink mt-1 text-xl font-extrabold">{{ selected.txCount }}회</p>
-              <p class="text-ink-muted text-[11px]">최근 30일</p>
-            </AppCard>
-            <AppCard>
-              <p class="text-ink-muted flex items-center gap-1 text-xs">
-                <IconStar :size="14" /> 평균 만족도
-              </p>
-              <p class="text-ink mt-1 text-xl font-extrabold">
-                {{ satisfactionScore.toFixed(1) }}<span class="text-sm">/5</span>
-              </p>
-              <p class="text-ink-muted text-[11px]">최근 30일</p>
-            </AppCard>
-            <AppCard>
-              <p class="text-ink-muted flex items-center gap-1 text-xs">
-                <IconMessage2 :size="14" /> 회고 건수
-              </p>
-              <p class="text-ink mt-1 text-xl font-extrabold">{{ selected.retrospectCount }}건</p>
-              <p class="text-ink-muted text-[11px]">최근 30일</p>
-            </AppCard>
-          </div>
-        </div>
 
-        <div class="bg-brand/5 rounded-2xl p-4">
-          <p class="text-brand flex items-center gap-1.5 text-sm font-semibold">
-            <IconBulb :size="15" /> AI 인사이트
-          </p>
-          <p class="text-ink mt-2 text-sm leading-relaxed">{{ selected.prescription }}</p>
-        </div>
+              <div class="divide-line mt-2 divide-y">
+                <div
+                  v-for="tx in transactions.slice(0, 3)"
+                  :key="tx.at"
+                  class="flex items-center gap-3 py-2.5"
+                >
+                  <MerchantBadge
+                    :name="tx.merchant"
+                    size="sm"
+                  />
+                  <span class="flex-1">
+                    <span class="text-ink block text-sm font-semibold">{{ tx.merchant }}</span>
+                    <span class="text-ink-muted block text-xs">{{ tx.at }}</span>
+                  </span>
+                  <span class="text-ink text-sm font-bold"
+                    >{{ tx.amount.toLocaleString('ko-KR') }}원</span
+                  >
+                </div>
+              </div>
 
-        <div class="space-y-2">
-          <PrimaryButton
-            v-if="selected.cta"
-            @click="$router.push('/chat')"
-            >{{ selected.cta.label }}</PrimaryButton
-          >
-          <PrimaryButton
-            variant="outline"
-            @click="subview = 'transactions'"
-            >거래 내역 보기</PrimaryButton
-          >
-        </div>
-      </template>
-
-      <template v-else-if="selected">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex size-12 shrink-0 items-center justify-center rounded-full"
-            :class="VERDICT_SOFT_BG_CLASS[selectedTone]"
-          >
-            <IconMoonStars
-              :size="22"
-              :stroke-width="1.5"
-              :class="VERDICT_TEXT_CLASS[selectedTone]"
-            />
-          </span>
-          <div>
-            <p class="text-ink font-bold">{{ selected.name }}</p>
-            <p class="text-ink-muted text-xs">회고가 완료된 거래를 모았어요</p>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between">
-          <p class="text-ink text-sm font-semibold">
-            거래 내역
-            <span class="text-ink-muted font-normal">(총 {{ transactions.length }}건)</span>
-          </p>
-          <p class="text-ink text-sm font-bold">
-            총 {{ transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString('ko-KR') }}원
-          </p>
-        </div>
-
-        <div class="space-y-2">
-          <div
-            v-for="tx in transactions"
-            :key="tx.at"
-            class="border-line flex items-center gap-3 rounded-2xl border p-3"
-          >
-            <MerchantBadge :name="tx.merchant" />
-            <span class="flex-1">
-              <span class="text-ink block text-sm font-semibold">{{ tx.merchant }}</span>
-              <span class="text-ink-muted block text-xs">{{ tx.at }}</span>
-            </span>
-            <span class="text-right">
-              <span class="text-ink block text-sm font-bold"
-                >{{ tx.amount.toLocaleString('ko-KR') }}원</span
+              <button
+                type="button"
+                class="text-ink-muted mt-2 flex w-full items-center justify-center gap-1 text-xs"
+                @click="subview = 'behavior'"
               >
+                더 보기 <IconChevronDown :size="14" />
+              </button>
+            </AppCard>
+          </template>
+
+          <template v-else-if="subview === 'behavior' && selected">
+            <div class="flex items-center gap-3">
               <span
-                class="text-satisfaction-low bg-satisfaction-low/10 mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                class="flex size-14 shrink-0 items-center justify-center rounded-full"
+                :class="VERDICT_SOFT_BG_CLASS[selectedTone]"
               >
-                {{ tx.score }}/5
+                <IconMoonStars
+                  :size="26"
+                  :stroke-width="1.5"
+                  :class="VERDICT_TEXT_CLASS[selectedTone]"
+                />
               </span>
-            </span>
-          </div>
-        </div>
+              <div>
+                <p class="text-ink text-lg font-bold">{{ selected.name }}</p>
+                <p class="text-ink-muted text-sm">최근 30일 기준 소비 행동이에요</p>
+              </div>
+            </div>
 
-        <p class="text-ink-muted bg-surface-muted flex items-center gap-2 rounded-2xl p-3 text-xs">
-          <IconMoodSmile
-            :size="16"
-            class="shrink-0"
-          />
-          회고가 완료된 거래만 표시됩니다. 회고가 아직이라면 AI채팅에서 이어서 작성할 수 있어요.
-        </p>
-      </template>
+            <div class="flex gap-2">
+              <span
+                class="bg-surface-muted text-ink-muted rounded-full px-3 py-1 text-xs font-medium"
+              >
+                만족도 {{ selected.adjustedSatisfaction >= 0 ? '높음' : '낮음' }}
+              </span>
+              <span
+                class="bg-surface-muted text-ink-muted rounded-full px-3 py-1 text-xs font-medium"
+              >
+                지출 부담 {{ burdenLabel }}
+              </span>
+            </div>
+
+            <div>
+              <p class="text-ink mb-2 text-sm font-semibold">핵심 지표</p>
+              <div class="grid grid-cols-2 gap-3">
+                <AppCard>
+                  <p class="text-ink-muted flex items-center gap-1 text-xs">
+                    <IconReceipt2 :size="14" /> 총 지출 금액
+                  </p>
+                  <p class="text-ink mt-1 text-xl font-extrabold">
+                    {{ selected.monthlyTotalAmount.toLocaleString('ko-KR') }}원
+                  </p>
+                  <p class="text-ink-muted text-[11px]">최근 30일</p>
+                </AppCard>
+                <AppCard>
+                  <p class="text-ink-muted flex items-center gap-1 text-xs">
+                    <IconPencil :size="14" /> 이용 횟수
+                  </p>
+                  <p class="text-ink mt-1 text-xl font-extrabold">{{ selected.txCount }}회</p>
+                  <p class="text-ink-muted text-[11px]">최근 30일</p>
+                </AppCard>
+                <AppCard>
+                  <p class="text-ink-muted flex items-center gap-1 text-xs">
+                    <IconStar :size="14" /> 평균 만족도
+                  </p>
+                  <p class="text-ink mt-1 text-xl font-extrabold">
+                    {{ satisfactionScore.toFixed(1) }}<span class="text-sm">/5</span>
+                  </p>
+                  <p class="text-ink-muted text-[11px]">최근 30일</p>
+                </AppCard>
+                <AppCard>
+                  <p class="text-ink-muted flex items-center gap-1 text-xs">
+                    <IconMessage2 :size="14" /> 회고 건수
+                  </p>
+                  <p class="text-ink mt-1 text-xl font-extrabold">
+                    {{ selected.retrospectCount }}건
+                  </p>
+                  <p class="text-ink-muted text-[11px]">최근 30일</p>
+                </AppCard>
+              </div>
+            </div>
+
+            <div class="bg-brand/5 rounded-2xl p-4">
+              <p class="text-brand flex items-center gap-1.5 text-sm font-semibold">
+                <IconBulb :size="15" /> AI 인사이트
+              </p>
+              <p class="text-ink mt-2 text-sm leading-relaxed">{{ selected.prescription }}</p>
+            </div>
+
+            <div class="space-y-2">
+              <PrimaryButton
+                v-if="selected.cta"
+                @click="$router.push('/chat')"
+                >{{ selected.cta.label }}</PrimaryButton
+              >
+              <PrimaryButton
+                variant="outline"
+                @click="subview = 'transactions'"
+                >거래 내역 보기</PrimaryButton
+              >
+            </div>
+          </template>
+
+          <template v-else-if="selected">
+            <div class="flex items-center gap-3">
+              <span
+                class="flex size-12 shrink-0 items-center justify-center rounded-full"
+                :class="VERDICT_SOFT_BG_CLASS[selectedTone]"
+              >
+                <IconMoonStars
+                  :size="22"
+                  :stroke-width="1.5"
+                  :class="VERDICT_TEXT_CLASS[selectedTone]"
+                />
+              </span>
+              <div>
+                <p class="text-ink font-bold">{{ selected.name }}</p>
+                <p class="text-ink-muted text-xs">회고가 완료된 거래를 모았어요</p>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <p class="text-ink text-sm font-semibold">
+                거래 내역
+                <span class="text-ink-muted font-normal">(총 {{ transactions.length }}건)</span>
+              </p>
+              <p class="text-ink text-sm font-bold">
+                총
+                {{ transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString('ko-KR') }}원
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <div
+                v-for="tx in transactions"
+                :key="tx.at"
+                class="border-line flex items-center gap-3 rounded-2xl border p-3"
+              >
+                <MerchantBadge :name="tx.merchant" />
+                <span class="flex-1">
+                  <span class="text-ink block text-sm font-semibold">{{ tx.merchant }}</span>
+                  <span class="text-ink-muted block text-xs">{{ tx.at }}</span>
+                </span>
+                <span class="text-right">
+                  <span class="text-ink block text-sm font-bold"
+                    >{{ tx.amount.toLocaleString('ko-KR') }}원</span
+                  >
+                  <span
+                    class="text-satisfaction-low bg-satisfaction-low/10 mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                  >
+                    {{ tx.score }}/5
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <p
+              class="text-ink-muted bg-surface-muted flex items-center gap-2 rounded-2xl p-3 text-xs"
+            >
+              <IconMoodSmile
+                :size="16"
+                class="shrink-0"
+              />
+              회고가 완료된 거래만 표시됩니다. 회고가 아직이라면 AI채팅에서 이어서 작성할 수 있어요.
+            </p>
+          </template>
+        </div>
+      </Transition>
     </main>
 
     <AppBottomNav />

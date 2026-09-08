@@ -296,269 +296,283 @@ const retrospectHistory = [
       </button>
     </div>
 
-    <main class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-      <template v-if="tab === '거래내역'">
-        <div class="border-line flex items-center gap-2 rounded-2xl border px-4 py-3">
-          <IconSearch
-            :size="18"
-            class="text-ink-muted"
-          />
-          <input
-            v-model="search"
-            type="text"
-            placeholder="가맹점, 메모 검색"
-            class="text-ink placeholder:text-ink-faint flex-1 bg-transparent text-sm outline-none"
-          />
-        </div>
-
-        <div class="flex gap-1">
-          <button
-            type="button"
-            class="border-line h-9 shrink-0 rounded-xl border px-3 text-xs font-medium"
-            :class="
-              allFiltersCleared
-                ? 'border-brand bg-brand-soft text-brand'
-                : 'bg-surface text-ink-muted'
-            "
-            @click="clearFilters"
-          >
-            전체
-          </button>
-          <AppFilterDropdown
-            v-model="period"
-            label="기간 필터"
-            :options="periodOptions"
-            :active="period !== 'ALL'"
-          />
-          <AppFilterDropdown
-            v-model="category"
-            label="카테고리 필터"
-            :options="categoryOptions"
-            :active="category !== ''"
-          />
-          <AppFilterDropdown
-            v-model="retrospect"
-            label="회고 필터"
-            :options="retrospectOptions"
-            :active="retrospect !== 'ALL'"
-          />
-          <AppFilterDropdown
-            v-model="sortOrder"
-            label="정렬 필터"
-            :options="sortOptions"
-            :active="sortOrder !== 'LATEST'"
-            align="right"
-          />
-        </div>
-
-        <p class="text-ink-muted text-xs">
-          총 {{ filteredTransactions.length.toLocaleString('ko-KR') }}건
-        </p>
-
-        <div class="divide-line border-line divide-y rounded-2xl border">
-          <button
-            v-for="t in filteredTransactions"
-            :key="t.merchant + t.at"
-            type="button"
-            class="flex w-full items-center gap-3 px-3 py-3"
-          >
-            <MerchantBadge :name="t.merchant" />
-            <span class="min-w-0 flex-1 text-left">
-              <span class="text-ink block truncate text-sm font-semibold">{{ t.merchant }}</span>
-              <span class="text-ink-muted block text-xs">{{ t.category }}</span>
-              <span class="text-ink-muted block text-[11px]"
-                >{{ t.at }} · {{ issuerLabels[t.issuer] }}</span
-              >
-            </span>
-            <span class="shrink-0 text-right">
-              <span class="text-ink block text-sm font-bold"
-                >{{ t.amount.toLocaleString('ko-KR') }}원</span
-              >
-              <span
-                class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                :class="
-                  t.retrospected
-                    ? 'text-satisfaction-high bg-satisfaction-high/10'
-                    : 'text-satisfaction-low bg-satisfaction-low/10'
-                "
-              >
-                {{ t.retrospected ? '회고함' : '미회고' }}
-              </span>
-            </span>
-            <IconChevronRight
-              :size="16"
-              class="text-ink-muted shrink-0"
-            />
-          </button>
-        </div>
-      </template>
-
-      <template v-else-if="tab === '추가 업로드'">
-        <div class="space-y-2">
-          <p class="text-ink text-sm font-semibold">1. 파일 업로드</p>
-          <div
-            class="border-line rounded-2xl border border-dashed px-4 py-8 text-center"
-            @dragover.prevent
-            @drop.prevent="onFileDrop"
-          >
-            <IconUpload
-              :size="28"
-              class="text-brand mx-auto"
-              :stroke-width="1.5"
-            />
-            <p class="text-ink-muted mt-3 text-sm">거래내역 파일을 드래그하거나</p>
-            <p class="text-ink text-sm font-semibold">파일을 선택하세요.</p>
-            <p class="text-ink-muted mt-1 text-xs">CSV, XLSX 파일 지원</p>
-            <input
-              ref="fileInput"
-              type="file"
-              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              class="hidden"
-              @change="onFileChange"
-            />
-            <button
-              type="button"
-              class="border-line text-ink mt-3 rounded-full border px-4 py-1.5 text-sm font-medium"
-              @click="fileInput?.click()"
-            >
-              파일 선택
-            </button>
-          </div>
-          <p
-            v-if="fileError"
-            class="text-brand px-1 text-xs"
-          >
-            {{ fileError }}
-          </p>
-          <div
-            v-if="uploadedFile"
-            class="border-line flex items-center gap-3 rounded-2xl border p-3"
-          >
-            <span
-              class="bg-surface-muted flex size-10 shrink-0 items-center justify-center rounded-xl"
-            >
-              <IconUpload
+    <main class="flex-1 overflow-y-auto px-4 py-4">
+      <Transition
+        name="subview"
+        mode="out-in"
+      >
+        <div
+          :key="tab"
+          class="space-y-4"
+        >
+          <template v-if="tab === '거래내역'">
+            <div class="border-line flex items-center gap-2 rounded-2xl border px-4 py-3">
+              <IconSearch
                 :size="18"
                 class="text-ink-muted"
               />
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="text-ink block truncate text-sm font-medium">{{
-                uploadedFile.name
-              }}</span>
-              <span class="text-ink-muted block text-xs">{{ uploadedFile.size }}</span>
-            </span>
-            <button
-              type="button"
-              class="text-ink-muted shrink-0"
-              aria-label="파일 제거"
-              @click="removeFile"
-            >
-              <IconX :size="18" />
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-if="uploadedFile"
-          class="space-y-2"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-ink text-sm font-semibold">2. 파싱 결과 확인</p>
-            <span
-              class="text-satisfaction-high bg-satisfaction-high/10 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-            >
-              <IconCircleCheck :size="14" /> 정상 처리
-            </span>
-          </div>
-          <div class="bg-surface-muted rounded-2xl p-4">
-            <p class="text-ink font-bold">총 1,236건의 거래내역을 불러왔어요.</p>
-            <p class="text-ink-muted mt-1 text-xs">아래 내용을 확인하고 업로드를 완료해주세요.</p>
-            <dl class="divide-line border-line mt-3 divide-y rounded-xl border">
-              <div
-                v-for="row in parseResult"
-                :key="row.label"
-                class="flex items-center justify-between px-3 py-2.5"
-              >
-                <dt class="text-ink-muted text-xs">{{ row.label }}</dt>
-                <dd class="text-ink text-xs font-semibold">{{ row.value }}</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-        <PrimaryButton :disabled="uploadedFile === null">업로드 완료</PrimaryButton>
-      </template>
-
-      <template v-else>
-        <div
-          class="divide-line border-line grid grid-cols-4 divide-x rounded-2xl border py-3 text-center"
-        >
-          <div>
-            <p class="text-ink-muted text-[11px]">총 회고 수</p>
-            <p class="text-ink mt-1 text-base font-extrabold">128건</p>
-          </div>
-          <div
-            v-for="s in retrospectSummary"
-            :key="s.key"
-          >
-            <p class="text-ink-muted text-[11px]">{{ satisfactionMeta[s.key].label }}</p>
-            <p
-              class="mt-1 text-base font-extrabold"
-              :class="satisfactionMeta[s.key].text"
-            >
-              {{ s.count }}
-            </p>
-          </div>
-        </div>
-
-        <div
-          v-for="group in retrospectHistory"
-          :key="group.date"
-          class="space-y-2"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-ink-muted text-xs font-medium">{{ group.date }}</p>
-            <span class="bg-surface-muted text-ink-muted rounded-full px-2 py-0.5 text-[11px]"
-              >{{ group.items.length }}건</span
-            >
-          </div>
-          <div class="divide-line border-line divide-y rounded-2xl border">
-            <button
-              v-for="item in group.items"
-              :key="item.merchant"
-              type="button"
-              class="flex w-full items-center gap-3 px-3 py-3"
-            >
-              <MerchantBadge :name="item.merchant" />
-              <span class="min-w-0 flex-1 text-left">
-                <span class="text-ink block truncate text-sm font-semibold">{{
-                  item.merchant
-                }}</span>
-                <span class="text-ink-muted block text-xs">{{ item.category }}</span>
-              </span>
-              <span class="shrink-0 text-right">
-                <span class="text-ink block text-sm font-bold"
-                  >{{ item.amount.toLocaleString('ko-KR') }}원</span
-                >
-                <span
-                  class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                  :class="satisfactionMeta[item.satisfaction].badge"
-                >
-                  <component
-                    :is="satisfactionMeta[item.satisfaction].icon"
-                    :size="12"
-                  />
-                  {{ satisfactionMeta[item.satisfaction].label }}
-                </span>
-              </span>
-              <IconChevronRight
-                :size="16"
-                class="text-ink-muted shrink-0"
+              <input
+                v-model="search"
+                type="text"
+                placeholder="가맹점, 메모 검색"
+                class="text-ink placeholder:text-ink-faint flex-1 bg-transparent text-sm outline-none"
               />
-            </button>
-          </div>
+            </div>
+
+            <div class="flex gap-1">
+              <button
+                type="button"
+                class="border-line h-9 shrink-0 rounded-xl border px-3 text-xs font-medium"
+                :class="
+                  allFiltersCleared
+                    ? 'border-brand bg-brand-soft text-brand'
+                    : 'bg-surface text-ink-muted'
+                "
+                @click="clearFilters"
+              >
+                전체
+              </button>
+              <AppFilterDropdown
+                v-model="period"
+                label="기간 필터"
+                :options="periodOptions"
+                :active="period !== 'ALL'"
+              />
+              <AppFilterDropdown
+                v-model="category"
+                label="카테고리 필터"
+                :options="categoryOptions"
+                :active="category !== ''"
+              />
+              <AppFilterDropdown
+                v-model="retrospect"
+                label="회고 필터"
+                :options="retrospectOptions"
+                :active="retrospect !== 'ALL'"
+              />
+              <AppFilterDropdown
+                v-model="sortOrder"
+                label="정렬 필터"
+                :options="sortOptions"
+                :active="sortOrder !== 'LATEST'"
+                align="right"
+              />
+            </div>
+
+            <p class="text-ink-muted text-xs">
+              총 {{ filteredTransactions.length.toLocaleString('ko-KR') }}건
+            </p>
+
+            <div class="divide-line border-line divide-y rounded-2xl border">
+              <button
+                v-for="t in filteredTransactions"
+                :key="t.merchant + t.at"
+                type="button"
+                class="flex w-full items-center gap-3 px-3 py-3"
+              >
+                <MerchantBadge :name="t.merchant" />
+                <span class="min-w-0 flex-1 text-left">
+                  <span class="text-ink block truncate text-sm font-semibold">{{
+                    t.merchant
+                  }}</span>
+                  <span class="text-ink-muted block text-xs">{{ t.category }}</span>
+                  <span class="text-ink-muted block text-[11px]"
+                    >{{ t.at }} · {{ issuerLabels[t.issuer] }}</span
+                  >
+                </span>
+                <span class="shrink-0 text-right">
+                  <span class="text-ink block text-sm font-bold"
+                    >{{ t.amount.toLocaleString('ko-KR') }}원</span
+                  >
+                  <span
+                    class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    :class="
+                      t.retrospected
+                        ? 'text-satisfaction-high bg-satisfaction-high/10'
+                        : 'text-satisfaction-low bg-satisfaction-low/10'
+                    "
+                  >
+                    {{ t.retrospected ? '회고함' : '미회고' }}
+                  </span>
+                </span>
+                <IconChevronRight
+                  :size="16"
+                  class="text-ink-muted shrink-0"
+                />
+              </button>
+            </div>
+          </template>
+
+          <template v-else-if="tab === '추가 업로드'">
+            <div class="space-y-2">
+              <p class="text-ink text-sm font-semibold">1. 파일 업로드</p>
+              <div
+                class="border-line rounded-2xl border border-dashed px-4 py-8 text-center"
+                @dragover.prevent
+                @drop.prevent="onFileDrop"
+              >
+                <IconUpload
+                  :size="28"
+                  class="text-brand mx-auto"
+                  :stroke-width="1.5"
+                />
+                <p class="text-ink-muted mt-3 text-sm">거래내역 파일을 드래그하거나</p>
+                <p class="text-ink text-sm font-semibold">파일을 선택하세요.</p>
+                <p class="text-ink-muted mt-1 text-xs">CSV, XLSX 파일 지원</p>
+                <input
+                  ref="fileInput"
+                  type="file"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  class="hidden"
+                  @change="onFileChange"
+                />
+                <button
+                  type="button"
+                  class="border-line text-ink mt-3 rounded-full border px-4 py-1.5 text-sm font-medium"
+                  @click="fileInput?.click()"
+                >
+                  파일 선택
+                </button>
+              </div>
+              <p
+                v-if="fileError"
+                class="text-brand px-1 text-xs"
+              >
+                {{ fileError }}
+              </p>
+              <div
+                v-if="uploadedFile"
+                class="border-line flex items-center gap-3 rounded-2xl border p-3"
+              >
+                <span
+                  class="bg-surface-muted flex size-10 shrink-0 items-center justify-center rounded-xl"
+                >
+                  <IconUpload
+                    :size="18"
+                    class="text-ink-muted"
+                  />
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="text-ink block truncate text-sm font-medium">{{
+                    uploadedFile.name
+                  }}</span>
+                  <span class="text-ink-muted block text-xs">{{ uploadedFile.size }}</span>
+                </span>
+                <button
+                  type="button"
+                  class="text-ink-muted shrink-0"
+                  aria-label="파일 제거"
+                  @click="removeFile"
+                >
+                  <IconX :size="18" />
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="uploadedFile"
+              class="space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <p class="text-ink text-sm font-semibold">2. 파싱 결과 확인</p>
+                <span
+                  class="text-satisfaction-high bg-satisfaction-high/10 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+                >
+                  <IconCircleCheck :size="14" /> 정상 처리
+                </span>
+              </div>
+              <div class="bg-surface-muted rounded-2xl p-4">
+                <p class="text-ink font-bold">총 1,236건의 거래내역을 불러왔어요.</p>
+                <p class="text-ink-muted mt-1 text-xs">
+                  아래 내용을 확인하고 업로드를 완료해주세요.
+                </p>
+                <dl class="divide-line border-line mt-3 divide-y rounded-xl border">
+                  <div
+                    v-for="row in parseResult"
+                    :key="row.label"
+                    class="flex items-center justify-between px-3 py-2.5"
+                  >
+                    <dt class="text-ink-muted text-xs">{{ row.label }}</dt>
+                    <dd class="text-ink text-xs font-semibold">{{ row.value }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+            <PrimaryButton :disabled="uploadedFile === null">업로드 완료</PrimaryButton>
+          </template>
+
+          <template v-else>
+            <div
+              class="divide-line border-line grid grid-cols-4 divide-x rounded-2xl border py-3 text-center"
+            >
+              <div>
+                <p class="text-ink-muted text-[11px]">총 회고 수</p>
+                <p class="text-ink mt-1 text-base font-extrabold">128건</p>
+              </div>
+              <div
+                v-for="s in retrospectSummary"
+                :key="s.key"
+              >
+                <p class="text-ink-muted text-[11px]">{{ satisfactionMeta[s.key].label }}</p>
+                <p
+                  class="mt-1 text-base font-extrabold"
+                  :class="satisfactionMeta[s.key].text"
+                >
+                  {{ s.count }}
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-for="group in retrospectHistory"
+              :key="group.date"
+              class="space-y-2"
+            >
+              <div class="flex items-center justify-between">
+                <p class="text-ink-muted text-xs font-medium">{{ group.date }}</p>
+                <span class="bg-surface-muted text-ink-muted rounded-full px-2 py-0.5 text-[11px]"
+                  >{{ group.items.length }}건</span
+                >
+              </div>
+              <div class="divide-line border-line divide-y rounded-2xl border">
+                <button
+                  v-for="item in group.items"
+                  :key="item.merchant"
+                  type="button"
+                  class="flex w-full items-center gap-3 px-3 py-3"
+                >
+                  <MerchantBadge :name="item.merchant" />
+                  <span class="min-w-0 flex-1 text-left">
+                    <span class="text-ink block truncate text-sm font-semibold">{{
+                      item.merchant
+                    }}</span>
+                    <span class="text-ink-muted block text-xs">{{ item.category }}</span>
+                  </span>
+                  <span class="shrink-0 text-right">
+                    <span class="text-ink block text-sm font-bold"
+                      >{{ item.amount.toLocaleString('ko-KR') }}원</span
+                    >
+                    <span
+                      class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      :class="satisfactionMeta[item.satisfaction].badge"
+                    >
+                      <component
+                        :is="satisfactionMeta[item.satisfaction].icon"
+                        :size="12"
+                      />
+                      {{ satisfactionMeta[item.satisfaction].label }}
+                    </span>
+                  </span>
+                  <IconChevronRight
+                    :size="16"
+                    class="text-ink-muted shrink-0"
+                  />
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
-      </template>
+      </Transition>
     </main>
 
     <AppBottomNav />
