@@ -407,13 +407,15 @@ function selectPoint(behaviorId: number) {
                 </div>
               </div>
 
-              <button
-                type="button"
+              <RouterLink
+                :to="{
+                  name: 'behavior-reviews',
+                  query: { behavior: selected.name },
+                }"
                 class="text-ink-muted mt-2 flex w-full items-center justify-center gap-1 text-xs"
-                @click="subview = 'behavior'"
               >
                 더 보기 <IconChevronDown :size="14" />
-              </button>
+              </RouterLink>
             </AppCard>
           </template>
 
@@ -476,7 +478,14 @@ function selectPoint(behaviorId: number) {
                   </p>
                   <p class="text-ink-muted text-[11px]">최근 30일</p>
                 </AppCard>
-                <AppCard>
+                <RouterLink
+                  :to="{
+                    name: 'behavior-reviews',
+                    query: { behavior: selected.name },
+                  }"
+                  class="border-line bg-surface rounded-card border p-4 text-left"
+                  aria-label="회고 내역 보기"
+                >
                   <p class="text-ink-muted flex items-center gap-1 text-xs">
                     <IconMessage2 :size="14" /> 회고 건수
                   </p>
@@ -484,7 +493,7 @@ function selectPoint(behaviorId: number) {
                     {{ selected.retrospectCount }}건
                   </p>
                   <p class="text-ink-muted text-[11px]">최근 30일</p>
-                </AppCard>
+                </RouterLink>
               </div>
             </div>
 

@@ -1,0 +1,29 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { describe, expect, it } from 'vitest'
+
+import { routes } from '@/router'
+import MapView from '@/views/MapView.vue'
+
+describe('만족도 지도 이동', () => {
+  it('카테고리 카드의 더 보기에서 선택한 카테고리 회고 내역으로 바로 이동한다', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/map')
+    await router.isReady()
+
+    const wrapper = mount(MapView, {
+      global: {
+        plugins: [createPinia(), router],
+        stubs: { SatisfactionScatter: true },
+      },
+    })
+    await flushPromises()
+
+    const reviewLink = wrapper.findAll('a').find((link) => link.text().includes('더 보기'))
+    if (!reviewLink) throw new Error('더 보기 링크를 찾지 못했습니다.')
+    expect(reviewLink.attributes('href')).toBe(
+      '/map/behavior/reviews?behavior=%EC%8B%AC%EC%95%BC+%EB%B0%B0%EB%8B%AC',
+    )
+  })
+})
