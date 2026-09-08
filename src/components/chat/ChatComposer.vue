@@ -89,7 +89,7 @@ function send() {
       <input
         v-model="draft"
         type="text"
-        placeholder="메시지를 입력하세요..."
+        placeholder="궁금한 내용을 입력해 주세요"
         class="text-ink placeholder:text-ink-faint flex-1 bg-transparent text-sm outline-none"
         @keyup.enter="send"
       />

@@ -1014,6 +1014,12 @@ function confirmAllocate() {
             만족도 지도 보기
           </PrimaryButton>
         </section>
+        <ChatBubble
+          role="ai"
+          :avatar="searchAvatar"
+        >
+          금융에 대해 궁금한 게 있다면 뭐든 편하게 물어보세요!
+        </ChatBubble>
       </template>
       <template v-else-if="step === 'qna'">
         <ChatQuickReplies
