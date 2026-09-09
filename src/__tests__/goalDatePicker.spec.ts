@@ -25,7 +25,7 @@ describe('목표 달성 예정일 선택', () => {
     expect(updates[updates.length - 1]).toEqual(['2026-10-20'])
   })
 
-  it('달력과 선택일까지 남은 주 단위를 표시한다', async () => {
+  it('달력을 표시하고 선택일까지 남은 기간 문구는 표시하지 않는다', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 8, 7, 12))
     const wrapper = mount(GoalDatePicker, { props: { modelValue: '2026-09-21' } })
@@ -33,10 +33,11 @@ describe('목표 달성 예정일 선택', () => {
     await wrapper.get('button[aria-label="달력 열기"]').trigger('click')
 
     expect(wrapper.text()).toContain('2026년 9월')
-    expect(wrapper.text()).toContain('선택한 날짜까지 약 2주 남았어요.')
+    expect(wrapper.text()).not.toContain('남았어요')
     expect(wrapper.get('button[aria-label="9월 7일"]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('button[aria-label="9월 7일"]').attributes('aria-current')).toBe('date')
-    expect(wrapper.get('button[aria-label="9월 7일"]').classes()).toContain('border-brand')
+    expect(wrapper.get('button[aria-label="9월 7일"]').classes()).toContain('bg-brand-soft')
+    expect(wrapper.get('button[aria-label="9월 7일"]').classes()).not.toContain('border-brand')
     expect(wrapper.get('button[aria-label="9월 8일"]').attributes('disabled')).toBeUndefined()
   })
 })

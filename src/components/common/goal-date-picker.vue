@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { IconCalendarEvent, IconChevronLeft, IconChevronRight, IconClock } from '@tabler/icons-vue'
+import { IconCalendarEvent, IconChevronLeft, IconChevronRight } from '@tabler/icons-vue'
 
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{
@@ -66,14 +66,6 @@ const calendarDays = computed(() => {
 const monthLabel = computed(
   () => `${displayedMonth.value.getFullYear()}년 ${displayedMonth.value.getMonth() + 1}월`,
 )
-
-const remainingLabel = computed(() => {
-  const selected = parseIso(props.modelValue)
-  if (!selected) return ''
-  const days = Math.max(1, Math.ceil((selected.getTime() - today.getTime()) / 86_400_000))
-  if (days < 30) return `선택한 날짜까지 약 ${Math.max(1, Math.ceil(days / 7))}주 남았어요.`
-  return `선택한 날짜까지 약 ${Math.max(1, Math.round(days / 30.4375))}개월 남았어요.`
-})
 
 function toggleCalendar() {
   open.value = !open.value
@@ -215,7 +207,7 @@ function restoreValue() {
               isSelected(day)
                 ? 'bg-brand text-surface font-bold'
                 : isToday(day)
-                  ? 'border-brand bg-brand-soft text-brand border font-bold opacity-100'
+                  ? 'bg-brand-soft text-ink opacity-100'
                   : isDisabled(day)
                     ? 'text-ink-faint opacity-35'
                     : index % 7 === 0
@@ -232,16 +224,6 @@ function restoreValue() {
             {{ day }}
           </button>
         </span>
-      </div>
-
-      <div
-        class="bg-brand-soft text-brand mt-3 flex items-center gap-2 rounded-xl px-3 py-2.5 text-[11px]"
-      >
-        <IconClock
-          :size="15"
-          class="shrink-0"
-        />
-        <span>{{ remainingLabel }}</span>
       </div>
     </div>
   </div>
