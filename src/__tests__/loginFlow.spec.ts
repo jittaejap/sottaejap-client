@@ -54,7 +54,8 @@ describe('로그인 사용자 상태', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/login')
     await router.isReady()
-    const replaceSpy = vi.spyOn(router, 'replace')
+    // 목적지 화면의 lazy import가 테스트 뒤에 끝나면 내려간 jsdom에서 unhandled error가 난다. 호출만 확인한다.
+    const replaceSpy = vi.spyOn(router, 'replace').mockResolvedValue(undefined)
     const wrapper = mount(LoginView, { global: { plugins: [pinia, router] } })
 
     const button = wrapper.findAll('button').find((item) => item.text().includes('데모 계정'))
@@ -78,7 +79,7 @@ describe('로그인 사용자 상태', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push(loginPath)
     await router.isReady()
-    const replaceSpy = vi.spyOn(router, 'replace')
+    const replaceSpy = vi.spyOn(router, 'replace').mockResolvedValue(undefined)
     const wrapper = mount(LoginView, { global: { plugins: [pinia, router] } })
 
     const button = wrapper.findAll('button').find((item) => item.text().includes('데모 계정'))
