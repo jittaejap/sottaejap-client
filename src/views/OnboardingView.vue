@@ -56,6 +56,7 @@ const totalSteps = 4
 const goalType = ref('TRAVEL')
 const goalName = ref('')
 const goalAmount = ref(3_000_000)
+const goalCurrentAmount = ref(0)
 const goalDueDate = ref(initialGoalDueDate())
 const goalDueDay = ref(Number(goalDueDate.value.slice(-2)))
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
@@ -401,7 +402,7 @@ async function next() {
             : `${selectedGoal?.label ?? '소비'} 자금`,
         targetAmount: goalAmount.value,
         targetDate: goalDueDate.value,
-        currentAmount: 0,
+        currentAmount: goalCurrentAmount.value,
       })
       savedSteps.add(1)
     } else if (step.value === 2 && !savedSteps.has(2)) {
@@ -553,6 +554,10 @@ async function next() {
               +{{ amount / 10_000 }}만
             </button>
           </div>
+        </div>
+        <div class="space-y-2">
+          <label class="text-ink-muted text-[13px] font-bold">지금까지 모은 금액</label>
+          <MoneyInput v-model="goalCurrentAmount" />
         </div>
         <div class="space-y-2">
           <label class="text-ink-muted text-[13px] font-bold">목표 달성 예정일</label>
