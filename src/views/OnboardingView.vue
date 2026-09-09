@@ -99,7 +99,6 @@ type ReviewAnswer = {
   satisfaction?: Satisfaction
   purpose?: PurposeTag
   companion?: CompanionTag
-  repeat?: boolean
 }
 type ReviewMessage = { role: 'ai' | 'user'; text: string }
 type ReviewRecord = {
@@ -245,7 +244,6 @@ async function answerReview(value: string) {
     reviewStage.value = 'repeat'
   } else if (reviewStage.value === 'repeat') {
     const repeatIntent = tagValue(REPEAT_OPTIONS, value)
-    reviewAnswers.value.repeat = repeatIntent
     saving.value = true
     saveError.value = ''
     try {
