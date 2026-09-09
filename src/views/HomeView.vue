@@ -3,10 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IconBell,
-  IconBurger,
   IconChevronRight,
-  IconCoffee,
-  IconCar,
   IconMoped,
   IconCrown,
   IconMoodAnnoyed,
@@ -19,7 +16,6 @@ import {
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
-import WeeklyTrendChart from '@/components/common/WeeklyTrendChart.vue'
 import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
 import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
 import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
@@ -135,14 +131,6 @@ const savingsActions = computed(() =>
     icon: IconMoped,
   })),
 )
-
-const weeklyTrend = [19_000, 24_000, 17_000, 31_000, 28_000, 35_000, 46_000]
-const weeklyLabels = ['3월', '4월', '5월', '6월', '7월', '8월', '9월']
-const topCategories = [
-  { label: '외식/배달', amount: 21_000, icon: IconBurger },
-  { label: '카페/간식', amount: 13_000, icon: IconCoffee },
-  { label: '교통', amount: 12_000, icon: IconCar },
-]
 
 const quadrantCounts = computed(() => {
   const counts = { PROTECT: 0, KEEP: 0, MINOR: 0, PRIORITY: 0 }
@@ -557,46 +545,6 @@ function openBehavior(behaviorId: number) {
                 </div>
               </dl>
             </AppCard>
-
-            <AppCard>
-              <p class="text-ink text-sm font-semibold">월별 절감액 추이</p>
-              <WeeklyTrendChart
-                :values="weeklyTrend"
-                :labels="weeklyLabels"
-              />
-            </AppCard>
-
-            <div>
-              <p class="text-ink mb-2 text-sm font-semibold">절감 카테고리 TOP 3</p>
-              <div class="divide-line border-line divide-y rounded-2xl border">
-                <button
-                  v-for="c in topCategories"
-                  :key="c.label"
-                  type="button"
-                  class="flex w-full items-center justify-between px-4 py-3.5"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="bg-brand-soft flex size-8 items-center justify-center rounded-lg">
-                      <component
-                        :is="c.icon"
-                        :size="18"
-                        class="text-brand"
-                      />
-                    </span>
-                    <span class="text-ink text-sm font-bold">{{ c.label }}</span>
-                  </span>
-                  <span class="flex items-center gap-1">
-                    <span class="text-ink text-sm font-bold"
-                      >{{ c.amount.toLocaleString('ko-KR') }}원</span
-                    >
-                    <IconChevronRight
-                      :size="15"
-                      class="text-ink-muted"
-                    />
-                  </span>
-                </button>
-              </div>
-            </div>
           </template>
         </div>
       </Transition>
