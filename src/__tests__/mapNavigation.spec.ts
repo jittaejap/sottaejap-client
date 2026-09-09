@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { routes } from '@/router'
+import SatisfactionScatter from '@/components/map/SatisfactionScatter.vue'
 import HomeView from '@/views/HomeView.vue'
 import MapView from '@/views/MapView.vue'
 import { ApiError } from '@/api/apiError'
@@ -138,6 +139,33 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).toContain('실제 배달(3)')
     expect(wrapper.text()).toContain('실제 처방')
     expect(wrapper.text()).not.toContain('예시 데이터를')
+  })
+
+  it('산점도의 점을 누르면 선택한 행동의 상세 화면을 연다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    const wrapper = mountMap(await mapRouter())
+    await flushPromises()
+
+    wrapper.findComponent(SatisfactionScatter).vm.$emit('select', 42)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('최근 30일 기준 소비 행동이에요')
+    expect(wrapper.text()).toContain('거래 내역 보기')
+    expect(wrapper.text()).not.toContain('나의 만족도 지도')
+  })
+
+  it('필터 칩은 점을 선택하지만 상세 화면으로 들어가지 않는다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([mapPoint(), mapPoint({ behaviorId: 7, name: '택시' })]),
+    )
+    const wrapper = mountMap(await mapRouter())
+    await flushPromises()
+
+    await clickChip(wrapper, '택시')
+
+    expect(wrapper.text()).toContain('택시(3)')
+    expect(wrapper.text()).toContain('나의 만족도 지도')
+    expect(wrapper.text()).not.toContain('최근 30일 기준 소비 행동이에요')
   })
 
   it('카테고리 카드의 더 보기에서 선택한 카테고리 회고 내역으로 바로 이동한다', async () => {

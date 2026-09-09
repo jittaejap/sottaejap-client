@@ -151,6 +151,11 @@ const transactionsTotal = computed(() =>
 function selectPoint(behaviorId: number) {
   selectedId.value = behaviorId
 }
+
+function openBehavior(behaviorId: number) {
+  selectedId.value = behaviorId
+  subview.value = 'behavior'
+}
 </script>
 
 <template>
@@ -287,7 +292,7 @@ function selectPoint(behaviorId: number) {
                     :points="visiblePoints"
                     :boundaries="boundaries"
                     :selected-id="selectedId"
-                    @select="selectPoint"
+                    @select="openBehavior"
                   />
                 </div>
 
