@@ -33,6 +33,7 @@ import {
   verdictTone,
 } from '@/components/map/verdictStyle'
 import { useMapStore } from '@/stores/map'
+import { getSatisfactionMap } from '@/api/service'
 
 const route = useRoute()
 const mapStore = useMapStore()
@@ -156,11 +157,15 @@ const mockMap: SatisfactionMap = {
 const selectedId = ref<number | null>(6)
 const filter = ref<string>('전체')
 
-onMounted(() => {
-  mapStore.data = mockMap
+onMounted(async () => {
+  try {
+    mapStore.data = await getSatisfactionMap()
+  } catch {
+    mapStore.data = mockMap
+  }
   const behaviorId = Number(route.params.behaviorId)
   if (Number.isInteger(behaviorId)) {
-    const match = mockMap.points.find((p) => p.behaviorId === behaviorId)
+    const match = mapStore.data.points.find((p) => p.behaviorId === behaviorId)
     if (match) {
       selectedId.value = match.behaviorId
       subview.value = 'behavior'
@@ -187,7 +192,7 @@ const selectedQuadrantTone = computed(() =>
 )
 
 const burdenLabel = computed(() => {
-  const boundary = mockMap.boundaries.x
+  const boundary = mapStore.data?.boundaries.x ?? mockMap.boundaries.x
   if (selected.value === null || boundary === null) return '보통'
   return selected.value.burdenRatio >= boundary ? '높음' : '낮음'
 })
@@ -319,14 +324,14 @@ function selectPoint(behaviorId: number) {
                   >
                     <span>높음</span>
                     <span class="[writing-mode:vertical-rl] font-medium">{{
-                      mockMap.axisY.label
+                      mapStore.data?.axisY.label ?? mockMap.axisY.label
                     }}</span>
                     <span>낮음</span>
                   </div>
                   <SatisfactionScatter
                     class="min-w-0 flex-1"
                     :points="visiblePoints"
-                    :boundaries="mockMap.boundaries"
+                    :boundaries="mapStore.data?.boundaries ?? mockMap.boundaries"
                     :selected-id="selectedId"
                     @select="selectPoint"
                   />
@@ -334,7 +339,9 @@ function selectPoint(behaviorId: number) {
 
                 <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
                   <span>낮음</span>
-                  <span class="font-medium">{{ mockMap.axisX.label }}</span>
+                  <span class="font-medium">{{
+                    mapStore.data?.axisX.label ?? mockMap.axisX.label
+                  }}</span>
                   <span>높음</span>
                 </div>
               </div>

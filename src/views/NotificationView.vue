@@ -1,69 +1,53 @@
 <script setup lang="ts">
-import { IconBell, IconBulb, IconClipboardText, IconTrendingUp } from '@tabler/icons-vue'
+import { computed, onMounted, ref } from 'vue'
+import { IconBulb, IconClipboardText } from '@tabler/icons-vue'
 
-import type { NotificationType } from '@/api/enums'
+import type { NotificationItem } from '@/api/types'
+import { getNotifications, readNotification } from '@/api/service'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 
-const groups: {
-  label: string
-  items: {
-    type: NotificationType
-    title: string
-    body: string
-    at: string
-    unread: boolean
-    icon: typeof IconBell
-  }[]
-}[] = [
+const notifications = ref<NotificationItem[]>([])
+const loadError = ref('')
+
+const groups = computed(() => [
   {
-    label: '오늘',
-    items: [
-      {
-        type: 'RETROSPECT_DUE',
-        title: 'D+1 회고 요청',
-        body: '어제 소비를 돌아보고 오늘의 선택을 더 현명하게 만들어보세요.',
-        at: '오전 9:00',
-        unread: true,
-        icon: IconBell,
-      },
-    ],
+    label: '알림',
+    items: notifications.value.map((item) => ({
+      id: item.id,
+      type: item.type,
+      title: item.type === 'RETROSPECT_DUE' ? '회고 요청' : '개선방안이 도착했어요',
+      body: item.message,
+      at: new Intl.DateTimeFormat('ko-KR', {
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(item.createdAt)),
+      unread: !item.isRead,
+      icon: item.type === 'RETROSPECT_DUE' ? IconClipboardText : IconBulb,
+    })),
   },
-  {
-    label: '어제',
-    items: [
-      {
-        type: 'RETROSPECT_DUE',
-        title: '회고 요청',
-        body: '오늘의 소비를 회고하고 지출 패턴을 확인해보세요.',
-        at: '오후 9:30',
-        unread: false,
-        icon: IconClipboardText,
-      },
-    ],
-  },
-  {
-    label: '이번 주',
-    items: [
-      {
-        type: 'SUGGESTION',
-        title: '개선방안이 도착했어요',
-        body: 'AI가 소비 패턴을 바탕으로 새로운 개선방안을 제안했어요.',
-        at: '5월 16일 (목)',
-        unread: false,
-        icon: IconBulb,
-      },
-      {
-        type: 'SUGGESTION',
-        title: '연속 회고 3일째예요',
-        body: '3일 연속 회고를 이어가고 있어요. 지금 흐름을 계속 유지해보세요!',
-        at: '5월 15일 (수)',
-        unread: false,
-        icon: IconTrendingUp,
-      },
-    ],
-  },
-]
+])
+
+onMounted(async () => {
+  try {
+    notifications.value = (await getNotifications()).notifications
+  } catch {
+    loadError.value = '알림을 불러오지 못했어요.'
+  }
+})
+
+async function markRead(item: { id: number; unread: boolean }) {
+  if (!item.unread) return
+  try {
+    await readNotification(item.id)
+    const target = notifications.value.find((notification) => notification.id === item.id)
+    if (target) target.isRead = true
+  } catch {
+    loadError.value = '알림을 읽음 처리하지 못했어요.'
+  }
+}
 </script>
 
 <template>
@@ -71,6 +55,12 @@ const groups: {
     <AppTopBar title="알림" />
 
     <main class="flex-1 space-y-5 overflow-y-auto px-4 pb-6">
+      <p
+        v-if="loadError"
+        class="text-brand text-sm"
+      >
+        {{ loadError }}
+      </p>
       <section
         v-for="group in groups"
         :key="group.label"
@@ -79,9 +69,10 @@ const groups: {
         <h2 class="text-ink-muted text-sm font-semibold">{{ group.label }}</h2>
         <RouterLink
           v-for="item in group.items"
-          :key="item.title"
+          :key="item.id"
           to="/chat"
           class="border-line bg-surface flex items-start gap-3 rounded-2xl border p-4"
+          @click="markRead(item)"
         >
           <span
             class="flex size-12 shrink-0 items-center justify-center rounded-full"

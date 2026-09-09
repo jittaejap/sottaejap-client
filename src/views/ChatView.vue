@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IconBulb,
@@ -41,6 +41,15 @@ import cheerAvatar from '@/assets/images/ai/07_cheer_hat.png'
 import thinkingAvatar from '@/assets/images/ai/05_thinking_hat.png'
 import searchAvatar from '@/assets/images/ai/09_search_hat.png'
 import { useChatStore, type ChatStep } from '@/stores/chat'
+import {
+  adoptSuggestion,
+  askFinance,
+  getAnalysis,
+  getGoals,
+  getSuggestions,
+  rejectSuggestionById,
+} from '@/api/service'
+import type { Analysis, Goal, Suggestion } from '@/api/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -165,14 +174,18 @@ const companionOptions = ['혼자', '친구', '가족', '연인', '동료', '기
 const satisfactionOptions = ['만족했어요', '별로예요', '잘 모르겠어요'] as const
 const repeatOptions = ['네', '아니오'] as const
 
-const currentFrequency = 4
+const activeSuggestion = ref<Suggestion | null>(null)
+const serverGoals = ref<Goal[]>([])
+const currentFrequency = computed(() => activeSuggestion.value?.txCount ?? 4)
 const frequency = ref(2)
 const reasonExpanded = ref(false)
 /** FR-08-03 — 예상 절감액은 묶음의 평균 거래금액(avgAmount) × 조정 횟수다. 부담 산식과 다르다. */
-const behaviorAvgAmount = 21_700
-const expectedSaving = computed(() => (currentFrequency - frequency.value) * behaviorAvgAmount)
+const behaviorAvgAmount = computed(() => activeSuggestion.value?.avgAmount ?? 21_700)
+const expectedSaving = computed(
+  () => (currentFrequency.value - frequency.value) * behaviorAvgAmount.value,
+)
 
-const goals = [
+const fallbackGoals = [
   {
     key: 'travel',
     label: '여행 자금',
@@ -198,8 +211,22 @@ const goals = [
     icon: IconGift,
   },
 ]
+const goals = computed(() =>
+  serverGoals.value.length > 0
+    ? serverGoals.value.map((goal) => ({
+        key: String(goal.id),
+        label: goal.name,
+        desc: `${goal.name} 목표예요.`,
+        saved: goal.currentAmount + goal.adoptedSaving,
+        target: goal.targetAmount,
+        icon: IconTargetArrow,
+      }))
+    : fallbackGoals,
+)
 const goalKey = ref('travel')
-const selectedGoal = computed(() => goals.find((g) => g.key === goalKey.value)!)
+const selectedGoal = computed(
+  () => goals.value.find((goal) => goal.key === goalKey.value) ?? goals.value[0]!,
+)
 const goalBefore = computed(() =>
   Math.round((selectedGoal.value.saved / selectedGoal.value.target) * 100),
 )
@@ -228,7 +255,7 @@ const profileTags = [
   },
 ]
 
-const behaviorSummary = [
+const fallbackBehaviorSummary = [
   {
     label: '친구와 외식',
     desc: '주 1~2회 외식으로 관계를 즐겨요.',
@@ -262,6 +289,27 @@ const behaviorSummary = [
     tagClass: 'bg-preview-red-ink/10 text-preview-red-ink',
   },
 ]
+const analysisData = ref<Analysis | null>(null)
+const behaviorSummary = computed(() => {
+  if (!analysisData.value || analysisData.value.byCategory.length === 0)
+    return fallbackBehaviorSummary
+
+  return analysisData.value.byCategory.slice(0, 4).map((category) => {
+    const adjust = category.verdict === 'ADJUST'
+    return {
+      label: category.category,
+      desc: `이번 달 ${category.monthlyTotalAmount.toLocaleString('ko-KR')}원을 사용했어요.`,
+      verdict: adjust ? PRESCRIPTION_LABEL.PRIORITY : PRESCRIPTION_LABEL.KEEP,
+      icon: adjust ? IconMoped : IconCoffee,
+      iconClass: adjust
+        ? 'bg-profile-red text-preview-red-ink'
+        : 'bg-profile-blue text-preview-blue-ink',
+      tagClass: adjust
+        ? 'bg-preview-red-ink/10 text-preview-red-ink'
+        : 'bg-preview-blue-ink/10 text-preview-blue-ink',
+    }
+  })
+})
 function startRetrospect() {
   chatStore.activate('retrospect')
   if (chatStore.steps.retrospect !== 'menu') return
@@ -269,11 +317,32 @@ function startRetrospect() {
   step.value = 'candidate'
 }
 
-function startAnalysis() {
+async function loadImprovement() {
+  try {
+    const [suggestions, goalsResult] = await Promise.all([getSuggestions(), getGoals()])
+    activeSuggestion.value = suggestions[0] ?? null
+    serverGoals.value = goalsResult
+    if (activeSuggestion.value) frequency.value = activeSuggestion.value.adjustCount
+    if (goalsResult[0]) goalKey.value = String(goalsResult[0].id)
+  } catch {
+    say('ai', '개선 방안을 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
+  }
+}
+
+onMounted(() => {
+  if (step.value === 'improvement') void loadImprovement()
+})
+
+async function startAnalysis() {
   chatStore.activate('analysis')
   if (chatStore.steps.analysis !== 'menu') return
   say('user', '제 소비를 분석해주세요')
-  say('ai', '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.', qnaImage)
+  try {
+    analysisData.value = await getAnalysis()
+    say('ai', analysisData.value.highlight || '이번 달 소비 패턴을 분석했어요.', qnaImage)
+  } catch {
+    say('ai', '소비 분석을 불러오지 못했어요. 잠시 후 다시 시도해주세요.', qnaImage)
+  }
   chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
@@ -286,16 +355,20 @@ function startQna() {
   step.value = 'qna'
 }
 
-function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
+async function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
   if (key === 'retrospect') startRetrospect()
-  else if (key === 'analysis') startAnalysis()
+  else if (key === 'analysis') await startAnalysis()
   else startQna()
 }
 
-function onSend(text: string) {
+async function onSend(text: string) {
   say('user', text)
   if (activeMode.value === 'qna') {
-    say('ai', '좋은 질문이에요! 금융 Q&A 답변을 준비하고 있어요. 이 대화는 금융 Q&A에만 저장돼요.')
+    try {
+      say('ai', (await askFinance(text)).reply)
+    } catch {
+      say('ai', '금융 Q&A 답변을 불러오지 못했어요. 잠시 후 다시 질문해주세요.')
+    }
   } else if (activeMode.value === 'analysis') {
     say('ai', '소비 분석에 대한 질문을 확인했어요. 현재 분석 맥락에서 이어서 살펴볼게요.')
   } else {
@@ -347,9 +420,18 @@ function finishRetrospect() {
     say('ai', '방금 마친 회고를 바탕으로 행동 조정안을 정리해봤어요.', searchAvatar)
   }
   step.value = 'improvement'
+  void loadImprovement()
 }
 
-function rejectSuggestion() {
+async function rejectSuggestion() {
+  if (activeSuggestion.value) {
+    try {
+      await rejectSuggestionById(activeSuggestion.value.id)
+    } catch {
+      say('ai', '제안 거절을 저장하지 못했어요. 다시 시도해주세요.')
+      return
+    }
+  }
   say('user', '제안을 거절할게요')
   say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂', aiSmallAvatarImage)
   chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
@@ -357,14 +439,22 @@ function rejectSuggestion() {
 }
 
 function answerFinance(value: string) {
-  say('user', value)
-  say(
-    'ai',
-    '좋은 질문이에요! 아직 준비 중인 답변이라, 곧 더 자세한 설명을 드릴 수 있도록 학습하고 있어요 🙂',
-  )
+  void onSend(value)
 }
 
-function confirmAllocate() {
+async function confirmAllocate() {
+  if (activeSuggestion.value) {
+    try {
+      const goalId = Number(goalKey.value)
+      await adoptSuggestion(activeSuggestion.value.id, {
+        adjustCount: frequency.value,
+        ...(Number.isInteger(goalId) ? { goalId } : {}),
+      })
+    } catch {
+      say('ai', '목표 자금 적용을 저장하지 못했어요. 다시 시도해주세요.')
+      return
+    }
+  }
   say('user', `${selectedGoal.value.label}에 연결할게요`)
   say('ai', '마지막으로 이번 소비 상황을 요약해드릴게요.', qnaImage)
   chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
@@ -777,8 +867,12 @@ function confirmAllocate() {
               />
             </span>
             <div class="min-w-0">
-              <p class="text-ink text-base font-bold">심야 배달 줄이기</p>
-              <p class="text-ink-faint text-xs">밤 10시 이후 배달 주문을 줄여보세요.</p>
+              <p class="text-ink text-base font-bold">
+                {{ activeSuggestion?.behaviorName ?? '심야 배달' }} 줄이기
+              </p>
+              <p class="text-ink-faint text-xs">
+                {{ activeSuggestion?.reason ?? '밤 10시 이후 배달 주문을 줄여보세요.' }}
+              </p>
             </div>
           </div>
 

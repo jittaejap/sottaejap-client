@@ -22,6 +22,83 @@ export interface TransactionUploadResult {
   skippedRows: { row: number; reason: string }[]
 }
 
+export interface Goal {
+  id: number
+  name: string
+  targetAmount: number
+  currentAmount: number
+  adoptedSaving: number
+  achievementRate: number
+  projectedRate: number
+}
+
+export interface RetrospectCandidate {
+  transactionId: number
+  occurredAt: string
+  merchant: string
+  amount: number
+  category: string
+  timeSlot: string
+  reasonCode: string
+  reason: string
+}
+
+export interface Suggestion {
+  id: number
+  behaviorId: number
+  behaviorName: string
+  monthlyTotalAmount: number
+  avgAmount: number
+  txCount: number
+  adjustedSatisfaction: number
+  quadrant: Quadrant | null
+  adjustCount: number
+  expectedSaving: number
+  goalId: number | null
+  status: 'PROPOSED' | 'ADOPTED' | 'REJECTED'
+  reason: string
+}
+
+export interface Analysis {
+  analysisYearMonth: string | null
+  byVerdict: {
+    verdict: Verdict
+    clusterCount: number
+    monthlyTotalAmount: number
+    share: number | null
+  }[]
+  pending: { clusterCount: number; monthlyTotalAmount: number; share: number | null }
+  byCategory: {
+    category: string
+    dominantTimeSlot: string | null
+    avgAmount: number | null
+    monthlyTotalAmount: number
+    verdict: Verdict | null
+  }[]
+  highlight: string
+}
+
+export interface NotificationItem {
+  id: number
+  type: 'RETROSPECT_DUE' | 'SUGGESTION'
+  refId: number
+  message: string
+  isRead: boolean
+  createdAt: string
+}
+
+export interface MonthlyReport {
+  yearMonth: string
+  finalized: boolean
+  totalSpending: number
+  previousTotalSpending: number
+  savedAmount: number
+  unsatisfiedCount: number
+  repeatCount: number
+  previousRepeatCount: number
+  goalAllocations: { goalId: number; amount: number }[]
+}
+
 export interface BehaviorSummary {
   behaviorId: number
   name: string

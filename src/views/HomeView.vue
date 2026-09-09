@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IconBell,
@@ -25,20 +25,30 @@ import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
 import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import savingsImage from '@/assets/images/savings-summary.png'
 import { useMapStore } from '@/stores/map'
+import { getGoals, getMonthlyReport } from '@/api/service'
+import type { Goal, MonthlyReport } from '@/api/types'
 
 const router = useRouter()
 const mapStore = useMapStore()
 const subview = ref<'dashboard' | 'goal' | 'savings'>('dashboard')
 
-const goal = {
-  label: '여행 자금',
-  sub: '여행 자금 마련',
-  percent: 31,
-  saved: 310_000,
-  target: 1_000_000,
+const serverGoal = ref<Goal | null>(null)
+const monthlyReport = ref<MonthlyReport | null>(null)
+const goal = computed(() => ({
+  label: serverGoal.value?.name ?? '등록된 목표 없음',
+  sub: serverGoal.value ? `${serverGoal.value.name} 마련` : '목표 자금 마련',
+  percent: Math.round(serverGoal.value?.projectedRate ?? 0),
+  saved: (serverGoal.value?.currentAmount ?? 0) + (serverGoal.value?.adoptedSaving ?? 0),
+  target: serverGoal.value?.targetAmount ?? 0,
   dueDate: '2025.12.31까지',
   daysLeft: 58,
-}
+}))
+
+onMounted(async () => {
+  const [goalsResult, reportResult] = await Promise.allSettled([getGoals(), getMonthlyReport()])
+  if (goalsResult.status === 'fulfilled') serverGoal.value = goalsResult.value[0] ?? null
+  if (reportResult.status === 'fulfilled') monthlyReport.value = reportResult.value
+})
 
 const savingsActions = [
   { label: '심야 배달 줄이기', amount: 46_000, behaviorId: 6, icon: IconMoped },
@@ -200,7 +210,10 @@ function openBehavior(behaviorId: number) {
               >
                 <span class="text-ink-faint text-[13px] font-medium">이번 달 절감액</span>
                 <span class="text-brand flex items-baseline gap-0.5 font-bold"
-                  ><span class="text-[22px]">46,000</span><span class="text-sm">원</span></span
+                  ><span class="text-[22px]">{{
+                    (monthlyReport?.savedAmount ?? 0).toLocaleString('ko-KR')
+                  }}</span
+                  ><span class="text-sm">원</span></span
                 >
                 <span class="bg-brand-soft text-brand rounded-md px-2 py-1 text-[10px] font-bold"
                   >전월 대비 +12%</span
@@ -387,7 +400,8 @@ function openBehavior(behaviorId: number) {
                 <div>
                   <p class="text-ink-muted text-sm">이번 달 총 절감액</p>
                   <p class="text-brand text-3xl font-extrabold">
-                    46,000<span class="text-lg">원</span>
+                    {{ (monthlyReport?.savedAmount ?? 0).toLocaleString('ko-KR')
+                    }}<span class="text-lg">원</span>
                   </p>
                   <span
                     class="text-satisfaction-high bg-satisfaction-high/10 mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"

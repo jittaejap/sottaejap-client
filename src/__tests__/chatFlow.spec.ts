@@ -1,10 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia } from 'pinia'
 
 import { routes } from '@/router'
 import ChatView from '@/views/ChatView.vue'
+
+vi.mock('@/api/service', () => ({
+  getSuggestions: vi.fn().mockResolvedValue([]),
+  getGoals: vi.fn().mockResolvedValue([]),
+  getAnalysis: vi.fn().mockResolvedValue({
+    analysisYearMonth: '2026-09',
+    byVerdict: [],
+    pending: { clusterCount: 0, monthlyTotalAmount: 0, share: 0 },
+    byCategory: [],
+    highlight: '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.',
+  }),
+  adoptSuggestion: vi.fn().mockResolvedValue({}),
+  rejectSuggestionById: vi.fn().mockResolvedValue({}),
+  askFinance: vi.fn().mockResolvedValue({ reply: '금융 Q&A 테스트 답변', fallback: false }),
+}))
 
 async function mountChat() {
   const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })

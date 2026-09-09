@@ -25,7 +25,6 @@ import assistantThinking from '@/assets/images/ai/05_thinking_hat.png'
 import {
   completeOnboarding,
   createGoal,
-  getRetrospectCandidates,
   saveRetrospect,
   startOnboarding,
   updateSettings,
@@ -378,12 +377,11 @@ async function next() {
     } else if (step.value === 3 && !savedSteps.has(3)) {
       if (!selectedFile.value) return
       const result = await uploadTransactions(selectedFile.value)
-      await startOnboarding({
+      const candidates = await startOnboarding({
         sampleSize: reviewTransactions.value.length,
         periodFrom: result.periodFrom,
         periodTo: result.periodTo,
       })
-      const candidates = await getRetrospectCandidates(reviewTransactions.value.length)
       reviewTransactions.value = candidates.map((candidate) => ({
         id: candidate.transactionId,
         badge: candidate.merchant.slice(0, 2),

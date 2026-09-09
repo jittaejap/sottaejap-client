@@ -1,6 +1,17 @@
 import type { Satisfaction } from '@/api/enums'
 import { httpClient } from '@/api/httpClient'
-import type { BehaviorDetail, TransactionUploadResult, UserMe } from '@/api/types'
+import type {
+  Analysis,
+  BehaviorDetail,
+  Goal,
+  MonthlyReport,
+  NotificationItem,
+  RetrospectCandidate,
+  SatisfactionMap,
+  Suggestion,
+  TransactionUploadResult,
+  UserMe,
+} from '@/api/types'
 
 type LoginResponse = { accessToken: string; tokenType: 'Bearer'; expiresAt: string }
 
@@ -28,7 +39,20 @@ export async function createGoal(input: {
   targetAmount: number
   currentAmount?: number
 }) {
-  const response = await httpClient.post('/goals', input)
+  const response = await httpClient.post<Goal>('/goals', input)
+  return response.data
+}
+
+export async function getGoals() {
+  const response = await httpClient.get<{ goals: Goal[] }>('/goals')
+  return response.data.goals
+}
+
+export async function updateGoal(
+  goalId: number,
+  input: { name: string; targetAmount: number; currentAmount?: number },
+) {
+  const response = await httpClient.put<Goal>(`/goals/${goalId}`, input)
   return response.data
 }
 
@@ -53,23 +77,18 @@ export async function startOnboarding(input: {
   periodFrom: string
   periodTo: string
 }) {
-  const response = await httpClient.post('/onboarding/start', input)
-  return response.data
+  const response = await httpClient.post<{ candidates: RetrospectCandidate[] }>(
+    '/onboarding/start',
+    input,
+  )
+  return response.data.candidates
 }
 
 export async function getRetrospectCandidates(limit: number) {
-  const response = await httpClient.get<{
-    candidates: {
-      transactionId: number
-      occurredAt: string
-      merchant: string
-      amount: number
-      category: string
-      timeSlot: string
-      reasonCode: string
-      reason: string
-    }[]
-  }>('/retrospects/candidates', { params: { limit } })
+  const response = await httpClient.get<{ candidates: RetrospectCandidate[] }>(
+    '/retrospects/candidates',
+    { params: { limit } },
+  )
   return response.data.candidates
 }
 
@@ -94,5 +113,58 @@ export async function completeOnboarding() {
 
 export async function getBehavior(id: number) {
   const response = await httpClient.get<BehaviorDetail>(`/behaviors/${id}`)
+  return response.data
+}
+
+export async function getSatisfactionMap() {
+  const response = await httpClient.get<SatisfactionMap>('/satisfaction-map')
+  return response.data
+}
+
+export async function getAnalysis() {
+  const response = await httpClient.get<Analysis>('/analysis')
+  return response.data
+}
+
+export async function getSuggestions(status?: Suggestion['status']) {
+  const response = await httpClient.get<{ suggestions: Suggestion[] }>('/suggestions', {
+    params: status ? { status } : undefined,
+  })
+  return response.data.suggestions
+}
+
+export async function adoptSuggestion(id: number, input: { adjustCount: number; goalId?: number }) {
+  const response = await httpClient.post<Suggestion>(`/suggestions/${id}/adopt`, input)
+  return response.data
+}
+
+export async function rejectSuggestionById(id: number) {
+  const response = await httpClient.post<Suggestion>(`/suggestions/${id}/reject`)
+  return response.data
+}
+
+export async function askFinance(message: string) {
+  const response = await httpClient.post<{ reply: string; fallback: boolean }>('/chat/finance', {
+    message,
+  })
+  return response.data
+}
+
+export async function getNotifications() {
+  const response = await httpClient.get<{
+    unreadCount: number
+    notifications: NotificationItem[]
+  }>('/notifications')
+  return response.data
+}
+
+export async function readNotification(id: number) {
+  await httpClient.post(`/notifications/${id}/read`)
+}
+
+export async function getMonthlyReport(yearMonth?: string) {
+  const response = await httpClient.get<MonthlyReport>('/reports/monthly', {
+    params: yearMonth ? { yearMonth } : undefined,
+  })
   return response.data
 }

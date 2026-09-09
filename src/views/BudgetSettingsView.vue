@@ -6,14 +6,28 @@ import { IconArrowRight, IconInfoCircle, IconWallet } from '@tabler/icons-vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import { useSettingsStore } from '@/stores/settings'
+import { updateSettings } from '@/api/service'
 
 const router = useRouter()
 const settings = useSettingsStore()
 const budget = ref(settings.monthlyBudget)
 
-function save() {
-  settings.updateBudget(budget.value)
-  void router.push('/me')
+const saving = ref(false)
+const saveError = ref('')
+
+async function save() {
+  if (saving.value) return
+  saving.value = true
+  saveError.value = ''
+  try {
+    await updateSettings({ monthlyBudget: budget.value })
+    settings.updateBudget(budget.value)
+    await router.push('/me')
+  } catch {
+    saveError.value = '월 예산을 저장하지 못했어요. 다시 시도해주세요.'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -80,10 +94,16 @@ function save() {
     </main>
 
     <footer class="bg-surface shrink-0 px-5 pt-3 pb-8">
+      <p
+        v-if="saveError"
+        class="text-brand mb-2 text-xs"
+      >
+        {{ saveError }}
+      </p>
       <button
         type="button"
         class="bg-brand text-surface flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-base font-bold disabled:opacity-40"
-        :disabled="budget <= 0"
+        :disabled="budget <= 0 || saving"
         @click="save"
       >
         저장하기 <IconArrowRight :size="18" />

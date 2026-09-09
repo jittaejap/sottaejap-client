@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { IconArrowRight, IconCheck } from '@tabler/icons-vue'
 
@@ -11,6 +11,7 @@ import goalEmergency from '@/assets/images/onboarding/goal-emergency.png'
 import goalIndependence from '@/assets/images/onboarding/goal-independence.png'
 import goalTravel from '@/assets/images/onboarding/goal-travel.png'
 import { useSettingsStore, type GoalType } from '@/stores/settings'
+import { createGoal, getGoals, updateGoal } from '@/api/service'
 
 const router = useRouter()
 const settings = useSettingsStore()
@@ -18,6 +19,24 @@ const goalType = ref<GoalType>(settings.goalType)
 const customName = ref(settings.goalType === 'CUSTOM' ? settings.goalName : '')
 const amount = ref(settings.goalAmount)
 const period = ref(settings.goalPeriod)
+const goalId = ref<number | null>(null)
+const currentAmount = ref(0)
+const saving = ref(false)
+const saveError = ref('')
+
+onMounted(async () => {
+  try {
+    const [goal] = await getGoals()
+    if (!goal) return
+    goalId.value = goal.id
+    currentAmount.value = goal.currentAmount
+    amount.value = goal.targetAmount
+    customName.value = goal.name
+    goalType.value = 'CUSTOM'
+  } catch {
+    saveError.value = '저장된 목표를 불러오지 못했어요.'
+  }
+})
 
 const goalTypes = [
   { value: 'TRAVEL', label: '여행', image: goalTravel },
@@ -42,15 +61,30 @@ function onGoalNameInput(event: Event) {
   input.value = sanitized
 }
 
-function save() {
+async function save() {
+  if (saving.value) return
   const selected = goalTypes.find((goal) => goal.value === goalType.value)!
-  settings.updateGoal({
-    type: goalType.value,
-    name: goalType.value === 'CUSTOM' ? customName.value.trim() : `${selected.label} 자금`,
-    amount: amount.value,
-    period: period.value,
-  })
-  void router.push('/me')
+  const name = goalType.value === 'CUSTOM' ? customName.value.trim() : `${selected.label} 자금`
+  saving.value = true
+  saveError.value = ''
+  try {
+    if (goalId.value === null) {
+      const created = await createGoal({ name, targetAmount: amount.value, currentAmount: 0 })
+      goalId.value = created.id
+    } else {
+      await updateGoal(goalId.value, {
+        name,
+        targetAmount: amount.value,
+        currentAmount: currentAmount.value,
+      })
+    }
+    settings.updateGoal({ type: goalType.value, name, amount: amount.value, period: period.value })
+    await router.push('/me')
+  } catch {
+    saveError.value = '목표를 저장하지 못했어요. 다시 시도해주세요.'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -156,10 +190,16 @@ function save() {
     </main>
 
     <footer class="bg-surface shrink-0 px-5 pt-3 pb-8">
+      <p
+        v-if="saveError"
+        class="text-brand mb-2 text-xs"
+      >
+        {{ saveError }}
+      </p>
       <button
         type="button"
         class="bg-brand text-surface flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-base font-bold disabled:opacity-40"
-        :disabled="!canSave"
+        :disabled="!canSave || saving"
         @click="save"
       >
         저장하기 <IconArrowRight :size="18" />

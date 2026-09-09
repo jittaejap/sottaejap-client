@@ -7,6 +7,12 @@ import { routes } from '@/router'
 import HomeView from '@/views/HomeView.vue'
 import MapView from '@/views/MapView.vue'
 
+vi.mock('@/api/service', () => ({
+  getSatisfactionMap: vi.fn().mockRejectedValue(new Error('offline')),
+  getGoals: vi.fn().mockResolvedValue([]),
+  getMonthlyReport: vi.fn().mockRejectedValue(new Error('offline')),
+}))
+
 describe('만족도 지도 이동', () => {
   it('카테고리 카드의 더 보기에서 선택한 카테고리 회고 내역으로 바로 이동한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
