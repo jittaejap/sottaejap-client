@@ -89,6 +89,24 @@ onMounted(async () => {
     unreadCount.value = notificationsResult.value.unreadCount
 })
 
+/** 03 `3-1` 3. 보조 지표 — `3-2 반복 횟수 변화` (FR-08-07). 전월이 없으면 이번 달 값만 말한다. */
+const repeatChange = computed(() => {
+  const report = monthlyReport.value
+  if (report === null) return null
+
+  const current = report.repeatCount
+  const previous = report.previousRepeatCount
+  if (previous === null) return { current, previous, deltaLabel: null, decreased: false }
+
+  const delta = current - previous
+  return {
+    current,
+    previous,
+    deltaLabel: delta === 0 ? '변화 없음' : `${Math.abs(delta)}회 ${delta < 0 ? '감소' : '증가'}`,
+    decreased: delta < 0,
+  }
+})
+
 const savingsActions = computed(() =>
   adoptedSuggestions.value.map((suggestion) => ({
     label: `${suggestion.behaviorName} 줄이기`,
@@ -276,18 +294,34 @@ function openBehavior(behaviorId: number) {
               <button
                 type="button"
                 class="border-line bg-surface flex h-[126px] flex-col items-start gap-1.5 rounded-[20px] border p-4 text-left"
-                @click="openBehavior(6)"
+                @click="subview = 'savings'"
               >
                 <span class="flex w-full items-center justify-between">
-                  <span class="text-ink-faint text-[13px] font-medium">행동 변화</span>
+                  <span class="text-ink-faint text-[13px] font-medium">반복 횟수 변화</span>
                   <span
                     class="bg-progress-track text-ink-faint rounded-md px-1.5 py-0.5 text-[10px]"
                     >이번 달 기준</span
                   >
                 </span>
-                <span class="text-ink text-[13px] font-medium">심야 배달</span>
-                <span class="text-ink text-xl font-bold">4회 → 2회</span>
-                <span class="text-brand text-xs font-bold">-50% 감소</span>
+                <span
+                  v-if="repeatChange === null"
+                  class="text-ink text-xl font-bold"
+                  >데이터 없음</span
+                >
+                <template v-else-if="repeatChange.deltaLabel === null">
+                  <span class="text-ink text-xl font-bold">{{ repeatChange.current }}회</span>
+                  <span class="text-ink-faint text-xs font-medium">전월 데이터 없음</span>
+                </template>
+                <template v-else>
+                  <span class="text-ink text-xl font-bold"
+                    >{{ repeatChange.previous }}회 → {{ repeatChange.current }}회</span
+                  >
+                  <span
+                    class="text-xs font-bold"
+                    :class="repeatChange.decreased ? 'text-brand' : 'text-ink-faint'"
+                    >{{ repeatChange.deltaLabel }}</span
+                  >
+                </template>
               </button>
             </div>
 
@@ -468,6 +502,30 @@ function openBehavior(behaviorId: number) {
                   class="h-[100px] w-[150px] shrink-0 rounded-2xl object-cover"
                 />
               </div>
+            </AppCard>
+
+            <AppCard v-if="monthlyReport !== null">
+              <p class="text-ink text-sm font-semibold">보조 지표</p>
+              <dl class="mt-2.5 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                  <dt class="text-ink-muted text-[13px]">아쉬운 소비 건수</dt>
+                  <dd class="text-ink text-[13px] font-semibold">
+                    {{ monthlyReport.unsatisfiedCount }}건
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="text-ink-muted text-[13px]">반복 횟수</dt>
+                  <dd class="text-ink text-[13px] font-semibold">
+                    <template v-if="repeatChange?.deltaLabel == null">
+                      {{ monthlyReport.repeatCount }}회 · 전월 데이터 없음
+                    </template>
+                    <template v-else>
+                      {{ repeatChange.previous }}회 → {{ repeatChange.current }}회 ·
+                      {{ repeatChange.deltaLabel }}
+                    </template>
+                  </dd>
+                </div>
+              </dl>
             </AppCard>
 
             <AppCard>
