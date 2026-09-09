@@ -10,7 +10,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const goalName = ref('여행 자금')
   const goalAmount = ref(1_000_000)
   const sensitivity = ref<AnalysisSensitivity | null>('BALANCED')
-  const outlierBaseAmount = ref(1_000_000)
 
   function updateBudget(value: number) {
     monthlyBudget.value = value
@@ -25,10 +24,6 @@ export const useSettingsStore = defineStore('settings', () => {
   function updateSensitivity(value: AnalysisSensitivity) {
     sensitivity.value = value
   }
-  function updateAnalysisSettings(value: AnalysisSensitivity | null, baseAmount: number) {
-    sensitivity.value = value
-    outlierBaseAmount.value = baseAmount
-  }
 
   return {
     monthlyBudget,
@@ -36,10 +31,8 @@ export const useSettingsStore = defineStore('settings', () => {
     goalName,
     goalAmount,
     sensitivity,
-    outlierBaseAmount,
     updateBudget,
     updateGoal,
     updateSensitivity,
-    updateAnalysisSettings,
   }
 })

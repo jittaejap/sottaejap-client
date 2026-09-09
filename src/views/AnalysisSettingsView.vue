@@ -12,13 +12,12 @@ import {
 
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
-import { useSettingsStore, type AnalysisSensitivity } from '@/stores/settings'
+import { updateSettings } from '@/api/service'
+import type { AnalysisSensitivity } from '@/stores/settings'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
-const settings = useSettingsStore()
-const sensitivity = ref<AnalysisSensitivity | null>(settings.sensitivity)
-const lastPreset = ref<AnalysisSensitivity>(settings.sensitivity ?? 'BALANCED')
-const customBaseAmount = ref(settings.sensitivity === null ? settings.outlierBaseAmount : 0)
+const userStore = useUserStore()
 
 const options = [
   {
@@ -26,6 +25,7 @@ const options = [
     title: '여유 있게',
     desc: '정말 큰 지출만 알려드려요',
     amount: '15만원 이상',
+    threshold: 3,
     baseAmount: 150_000,
     icon: IconChartBar,
   },
@@ -34,6 +34,7 @@ const options = [
     title: '균형 있게',
     desc: '평소와 다른 지출을 알려드려요',
     amount: '10만원 이상',
+    threshold: 2,
     baseAmount: 100_000,
     icon: IconBell,
   },
@@ -42,30 +43,53 @@ const options = [
     title: '꼼꼼하게',
     desc: '작은 변화도 알려드려요',
     amount: '5만원 이상',
+    threshold: 1.5,
     baseAmount: 50_000,
     icon: IconSearch,
   },
 ] as const
 
-const selectedPreset = computed(() => options.find((option) => option.value === sensitivity.value))
-const effectiveBaseAmount = computed(
-  () => customBaseAmount.value || selectedPreset.value?.baseAmount || 0,
+// 서버가 정본이다. 배수(`outlierThreshold`)로 프리셋을 되찾고, 금액(`outlierBaseAmount`)은 따로 읽는다.
+// 배수가 프리셋 셋 중 어느 것도 아니면 카드를 하나도 켜지 않는다.
+const initialPreset =
+  options.find((option) => option.threshold === userStore.me?.outlierThreshold)?.value ?? null
+/** 서버가 준 기준 금액. 정하지 않았으면 `null`이고, 화면은 그것을 "직접 설정 안 함"으로 그린다 (E-115). */
+const initialBaseAmount = userStore.me?.outlierBaseAmount ?? null
+
+const sensitivity = ref<AnalysisSensitivity | null>(initialPreset)
+// `MoneyInput`은 숫자만 받으므로 미설정을 0으로 들고 있다. 0은 화면 표시일 뿐 서버로 보내지 않는다.
+const customBaseAmount = ref(initialBaseAmount ?? 0)
+
+const presetChanged = computed(() => sensitivity.value !== initialPreset)
+const amountChanged = computed(() => customBaseAmount.value !== (initialBaseAmount ?? 0))
+/** 바꾼 것이 없으면 보낼 필드가 없다 — 넷이 전부 빈 요청은 서버가 400으로 돌려준다 (E-115 ③). */
+const canSave = computed(
+  () => presetChanged.value || (amountChanged.value && customBaseAmount.value > 0),
 )
-const canSave = computed(() => effectiveBaseAmount.value > 0)
 
 function selectPreset(value: AnalysisSensitivity) {
-  lastPreset.value = value
   sensitivity.value = value
-  customBaseAmount.value = 0
+  customBaseAmount.value = options.find((option) => option.value === value)?.baseAmount ?? 0
 }
 
+/** 금액만 바꾼다. 프리셋(배수)은 그대로 둔다 — 두 값은 서로 다른 규칙에 쓰인다 (E-115). */
 function selectCustomAmount(value: number) {
   customBaseAmount.value = value
-  sensitivity.value = value > 0 ? null : lastPreset.value
 }
 
-function save() {
-  settings.updateAnalysisSettings(sensitivity.value, effectiveBaseAmount.value)
+async function save() {
+  const payload: { outlierThreshold?: number; outlierBaseAmount?: number } = {}
+  if (presetChanged.value) {
+    payload.outlierThreshold = options.find(
+      (option) => option.value === sensitivity.value,
+    )?.threshold
+  }
+  if (amountChanged.value && customBaseAmount.value > 0) {
+    payload.outlierBaseAmount = customBaseAmount.value
+  }
+  if (payload.outlierThreshold !== undefined || payload.outlierBaseAmount !== undefined) {
+    userStore.replaceMe(await updateSettings(payload))
+  }
   void router.push('/me')
 }
 </script>
@@ -148,6 +172,12 @@ function save() {
           accent
           @update:model-value="selectCustomAmount"
         />
+        <p
+          v-if="customBaseAmount === 0"
+          class="text-ink-faint text-xs"
+        >
+          직접 설정 안 함 — 월 예산 기준으로 큰 금액을 판단해요.
+        </p>
         <div class="flex gap-2">
           <button
             v-for="amount in [50_000, 100_000, 500_000, 1_000_000]"

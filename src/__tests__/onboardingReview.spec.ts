@@ -7,7 +7,7 @@ import { routes } from '@/router'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
 import { ApiError } from '@/api/apiError'
-import { saveRetrospect, startOnboarding, uploadTransactions } from '@/api/service'
+import { saveRetrospect, startOnboarding, updateSettings, uploadTransactions } from '@/api/service'
 
 const { candidates } = vi.hoisted(() => ({
   candidates: Array.from({ length: 10 }, (_, index) => ({
@@ -51,6 +51,54 @@ async function selectUpload(wrapper: VueWrapper) {
 }
 
 describe('온보딩 표본 회고', () => {
+  it('프리셋을 고르면 이상치 배수와 기준 금액을 함께 보낸다', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
+
+    await click(wrapper, '다음 단계로')
+    expect(wrapper.text()).toContain('기준 금액 직접 설정')
+
+    const detailed = wrapper.findAll('button').find((item) => item.text().includes('꼼꼼하게'))
+    if (!detailed) throw new Error('꼼꼼하게 버튼을 찾지 못했습니다.')
+    await detailed.trigger('click')
+    await click(wrapper, '다음 단계로')
+
+    expect(updateSettings).toHaveBeenLastCalledWith({
+      monthlyBudget: 2_500_000,
+      outlierThreshold: 1.5,
+      outlierBaseAmount: 50_000,
+      retrospectDelayDays: 1,
+    })
+  })
+
+  it('기준 금액을 직접 입력해도 프리셋이 정한 배수는 그대로 보낸다', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
+
+    await click(wrapper, '다음 단계로')
+
+    const relaxed = wrapper.findAll('button').find((item) => item.text().includes('여유 있게'))
+    if (!relaxed) throw new Error('여유 있게 버튼을 찾지 못했습니다.')
+    await relaxed.trigger('click')
+
+    const numericInputs = wrapper.findAll('input[inputmode="numeric"]')
+    const amountInput = numericInputs[numericInputs.length - 1]
+    if (!amountInput) throw new Error('기준 금액 입력란을 찾지 못했습니다.')
+    await amountInput.setValue('320000')
+    await click(wrapper, '다음 단계로')
+
+    expect(updateSettings).toHaveBeenLastCalledWith({
+      monthlyBudget: 2_500_000,
+      outlierThreshold: 3,
+      outlierBaseAmount: 320_000,
+      retrospectDelayDays: 1,
+    })
+  })
+
   it('직접 입력 목표에서만 목표명을 받고 9글자와 허용 문자로 제한한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')

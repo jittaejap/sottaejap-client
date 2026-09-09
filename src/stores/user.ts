@@ -115,6 +115,14 @@ export const useUserStore = defineStore('user', () => {
     me.value = { ...me.value, onboardingCompleted: true }
   }
 
+  /**
+   * `PUT /users/me/settings` 같은 설정 변경 응답으로 사용자 정보를 통째로 갈아 끼운다.
+   * 응답이 `GET /users/me`와 같은 객체이므로 화면이 저장 결과를 다시 조회하지 않아도 된다.
+   */
+  function replaceMe(value: UserMe) {
+    me.value = value
+  }
+
   /** 로그아웃. 인증정보와 사용자별 메모리 상태를 함께 지워 계정 간 데이터가 섞이지 않게 한다. */
   function signOut() {
     accessToken.value = null
@@ -132,6 +140,7 @@ export const useUserStore = defineStore('user', () => {
     signIn,
     restore,
     markOnboardingCompleted,
+    replaceMe,
     signOut,
   }
 })

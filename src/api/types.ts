@@ -21,6 +21,8 @@ export interface UserMe {
   authProvider: AuthProvider
   monthlyBudget: number
   outlierThreshold: number
+  /** 큰 금액 후보 판정의 원 단위 기준 금액 (E-115). 정하지 않았으면 null이다 — 0으로 대체하지 않는다. */
+  outlierBaseAmount: number | null
   retrospectDelayDays: number
   onboardingCompleted: boolean
   /** `YYYY-MM` */
