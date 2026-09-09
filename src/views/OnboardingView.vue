@@ -18,6 +18,7 @@ import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
 import {
   COMPANION_OPTIONS,
   PURPOSE_OPTIONS,
+  REPEAT_OPTIONS,
   SATISFACTION_OPTIONS,
   tagLabels,
   tagValue,
@@ -98,7 +99,6 @@ type ReviewAnswer = {
   satisfaction?: Satisfaction
   purpose?: PurposeTag
   companion?: CompanionTag
-  repeat?: string
 }
 type ReviewMessage = { role: 'ai' | 'user'; text: string }
 type ReviewRecord = {
@@ -198,7 +198,7 @@ const reviewOptions = computed<readonly string[]>(() => {
   if (reviewStage.value === 'satisfaction') return tagLabels(SATISFACTION_OPTIONS)
   if (reviewStage.value === 'purpose') return tagLabels(PURPOSE_OPTIONS)
   if (reviewStage.value === 'companion') return tagLabels(COMPANION_OPTIONS)
-  if (reviewStage.value === 'repeat') return ['네', '아니오']
+  if (reviewStage.value === 'repeat') return tagLabels(REPEAT_OPTIONS)
   return []
 })
 
@@ -242,8 +242,8 @@ async function answerReview(value: string) {
   } else if (reviewStage.value === 'companion') {
     reviewAnswers.value.companion = tagValue(COMPANION_OPTIONS, value)
     reviewStage.value = 'repeat'
-  } else {
-    reviewAnswers.value.repeat = value
+  } else if (reviewStage.value === 'repeat') {
+    const repeatIntent = tagValue(REPEAT_OPTIONS, value)
     saving.value = true
     saveError.value = ''
     try {
@@ -252,7 +252,7 @@ async function answerReview(value: string) {
         satisfaction: reviewAnswers.value.satisfaction ?? 'UNKNOWN',
         purpose: reviewAnswers.value.purpose ?? '기타',
         companion: reviewAnswers.value.companion ?? '기타',
-        repeatIntent: value === '네',
+        repeatIntent,
         source: 'ONBOARDING',
       })
       reviewStage.value = 'complete'
@@ -268,6 +268,10 @@ async function answerReview(value: string) {
       saving.value = false
     }
     return
+  } else {
+    // 단계를 더하고 분기를 빠뜨리면 여기서 type-check가 실패한다.
+    const unhandled: never = reviewStage.value
+    return unhandled
   }
 
   reviewMessages.value.push({ role: 'ai', text: reviewQuestion(reviewStage.value) })

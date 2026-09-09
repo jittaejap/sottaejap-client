@@ -1,11 +1,12 @@
 import { COMPANION_TAG, type CompanionTag, type PurposeTag, type Satisfaction } from '@/api/enums'
 
 /**
- * 표준 태그의 화면 라벨과 전송 값 (#16).
+ * 회고 선택지의 화면 라벨과 전송 값 (#16 · #30).
  * 화면에는 label을 그리고, 서버로 보내거나 서버 응답과 비교하는 것은 value 하나뿐이다.
- * 라벨은 읽기 좋으라고 가운뎃점 둘레에 공백을 두지만 정본 표기는 공백이 없다 (01 E-41).
+ * 표준 태그의 라벨은 읽기 좋으라고 가운뎃점 둘레에 공백을 두지만 정본 표기는 공백이 없다 (01 E-41).
+ * value는 문자열 enum일 수도, 반복 의향처럼 boolean일 수도 있다.
  */
-export interface TagOption<V extends string> {
+export interface TagOption<V> {
   value: V
   label: string
 }
@@ -33,12 +34,19 @@ export const SATISFACTION_OPTIONS: readonly TagOption<Satisfaction>[] = [
   { value: 'UNKNOWN', label: '잘 모르겠어요' },
 ]
 
-export function tagLabels(options: readonly TagOption<string>[]): readonly string[] {
+/** 반복 의향 2택 (05 §0 `repeatIntent` boolean). */
+export const REPEAT_OPTIONS: readonly TagOption<boolean>[] = [
+  { value: true, label: '네' },
+  { value: false, label: '아니오' },
+]
+
+/** label만 읽으므로 값 타입은 알 필요가 없다. */
+export function tagLabels(options: readonly TagOption<unknown>[]): readonly string[] {
   return options.map((option) => option.label)
 }
 
 /** 칩에서 고른 라벨을 전송 값으로 되돌린다. 목록 밖 라벨은 호출부 버그이므로 바로 던진다. */
-export function tagValue<V extends string>(options: readonly TagOption<V>[], label: string): V {
+export function tagValue<V>(options: readonly TagOption<V>[], label: string): V {
   const option = options.find((item) => item.label === label)
   if (!option) throw new Error('알 수 없는 라벨: ' + label)
   return option.value

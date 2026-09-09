@@ -34,6 +34,7 @@ import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
 import {
   COMPANION_OPTIONS,
   PURPOSE_OPTIONS,
+  REPEAT_OPTIONS,
   SATISFACTION_OPTIONS,
   tagLabels,
 } from '@/components/chat/tagOptions'
@@ -175,7 +176,7 @@ const filtered = computed(() =>
 const purposeOptions = tagLabels(PURPOSE_OPTIONS)
 const companionOptions = tagLabels(COMPANION_OPTIONS)
 const satisfactionOptions = tagLabels(SATISFACTION_OPTIONS)
-const repeatOptions = ['네', '아니오'] as const
+const repeatOptions = tagLabels(REPEAT_OPTIONS)
 
 const activeSuggestion = ref<Suggestion | null>(null)
 const serverGoals = ref<Goal[]>([])
