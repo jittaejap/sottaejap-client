@@ -61,6 +61,12 @@ export const useChatStore = defineStore('chat', () => {
   const suggestedReflection = ref<RetrospectReflection | null>(null)
   /** 03 S11 — `fallback: true` 또는 503 `LLM_UNAVAILABLE`이면 템플릿 모드로 이어간다 (FR-04-15). */
   const templateMode = ref(false)
+  /**
+   * 지금 회고 중인 거래의 대화가 `histories.retrospect`의 몇 번째부터인지.
+   * 화면에는 이전 거래의 대화도 그대로 남기지만, `recentMessages`에는 이 지점 뒤만 싣는다 —
+   * 다른 거래의 답이 실리면 AI가 그 값을 후보로 돌려주고 칩이 미리 눌린다 (01 E-20).
+   */
+  const retrospectHistoryStart = ref(0)
 
   /** 다른 거래를 회고할 때마다 확정값·후보값·배너를 비운다. */
   function resetReflection() {
@@ -88,6 +94,7 @@ export const useChatStore = defineStore('chat', () => {
     analysisTimelineBreak.value = 0
     candidates.value = []
     selectedCandidate.value = null
+    retrospectHistoryStart.value = 0
     resetReflection()
   }
 
@@ -101,6 +108,7 @@ export const useChatStore = defineStore('chat', () => {
     reflection,
     suggestedReflection,
     templateMode,
+    retrospectHistoryStart,
     activate,
     addMessage,
     resetReflection,

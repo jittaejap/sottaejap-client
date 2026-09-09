@@ -184,9 +184,11 @@ const CONTENT_LIMIT = { user: 500, assistant: 2_000 } as const
 /**
  * 05 §2 #11 `recentMessages` — 오름차순(오래된 → 최신) · 보내기 전 마지막 6건.
  * `ai`는 `assistant`로 바꾸고 빈 내용은 뺀다. 어기면 400 `INVALID_INPUT`이고 서버는 AI를 부르지 않는다.
+ * 지금 회고 중인 거래의 대화만 싣는다 — 서버는 이 이력으로 `task_context`를 만든다.
  */
 function recentMessages(): RetrospectChatMessage[] {
   return chatStore.histories.retrospect
+    .slice(chatStore.retrospectHistoryStart)
     .map((entry) => {
       const role = entry.role === 'ai' ? ('assistant' as const) : ('user' as const)
       return { role, content: [...entry.text.trim()].slice(0, CONTENT_LIMIT[role]).join('') }
@@ -583,6 +585,8 @@ async function startQa() {
   const candidate = chatStore.selectedCandidate
   if (!candidate || requestPending.value) return
   chatStore.resetReflection()
+  // 여기부터가 이 거래의 대화다. 앞선 거래의 답이 다음 요청에 실리지 않게 경계를 옮긴다.
+  chatStore.retrospectHistoryStart = chatStore.histories.retrospect.length
   say('user', `${candidate.merchant} ${candidate.amount.toLocaleString('ko-KR')}원 회고할게요`)
   // 서버가 실패해도 P0 선택지 모드로 이어갈 수 있게 먼저 단계를 옮긴다.
   step.value = 'qaSatisfaction'

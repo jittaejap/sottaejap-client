@@ -89,6 +89,14 @@ async function click(wrapper: VueWrapper, label: string) {
   await wrapper.vm.$nextTick()
 }
 
+/** 후보 목록의 행 버튼은 상점명·카테고리·금액·시각을 한 덩어리로 담는다. */
+async function pickRow(wrapper: VueWrapper, merchant: string) {
+  const row = wrapper.findAll('button').find((b) => b.text().includes(merchant))
+  if (!row) throw new Error(`후보 행을 찾지 못했다: ${merchant}`)
+  await row.trigger('click')
+  await wrapper.vm.$nextTick()
+}
+
 async function type(wrapper: VueWrapper, text: string) {
   const input = wrapper.find('input[placeholder="궁금한 내용을 입력해 주세요"]')
   await input.setValue(text)
@@ -525,6 +533,50 @@ describe('회고 대화 턴 (05 §2 POST /retrospects/chat)', () => {
 
     expect(wrapper.text()).toContain('기본 질문으로 진행하고 있어요')
     expect(wrapper.text()).toContain('만족했어요')
+  })
+
+  it('후보를 바꾸면 이전 거래의 대화를 다음 요청에 싣지 않는다', async () => {
+    const { wrapper } = await mountChat()
+
+    // 거래 A(1043)를 칩으로 끝까지 답한다
+    await click(wrapper, '회고 등록')
+    await click(wrapper, '회고해볼게요')
+    await click(wrapper, '별로예요')
+    await click(wrapper, '충동')
+    await click(wrapper, '혼자')
+    await click(wrapper, '아니오')
+
+    // wrapup에서 다른 소비 회고하기 → 거래 B(1044)
+    await click(wrapper, '다른 소비 회고하기')
+    await pickRow(wrapper, '스타벅스')
+    vi.mocked(chatRetrospect).mockClear()
+    await click(wrapper, '선택한 거래로 회고 시작')
+
+    const request = vi.mocked(chatRetrospect).mock.calls[0]![0]
+    expect(request.transactionId).toBe(1044)
+    // A의 답(충동 · 혼자 · 아니오)과 A의 질문이 B의 요청에 실리면 안 된다.
+    const contents = request.recentMessages.map((message) => message.content)
+    expect(contents).not.toContain('충동')
+    expect(contents).not.toContain('혼자')
+    expect(contents).not.toContain('아니오')
+    expect(contents.some((content) => content.includes('배달의민족'))).toBe(false)
+  })
+
+  it('같은 거래 안에서는 대화가 이어진다', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '회고 등록')
+    await click(wrapper, '회고해볼게요')
+    await click(wrapper, '별로예요')
+    vi.mocked(chatRetrospect).mockClear()
+
+    await type(wrapper, '충동적이었어요')
+
+    const contents = vi
+      .mocked(chatRetrospect)
+      .mock.calls[0]![0].recentMessages.map((message) => message.content)
+    expect(contents).toContain('별로예요')
+    expect(contents).toContain('이 소비는 어땠나요?')
   })
 
   it('409 DUPLICATE_RETROSPECT는 안내하고 후보 목록으로 돌아간다', async () => {
