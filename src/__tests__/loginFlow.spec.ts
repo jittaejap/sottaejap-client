@@ -65,4 +65,41 @@ describe('로그인 사용자 상태', () => {
     expect(useUserStore(pinia).me).toEqual(me)
     expect(replaceSpy).toHaveBeenCalledWith('/')
   })
+
+  async function demoLoginFrom(loginPath: string, onboardingCompleted = true) {
+    vi.mocked(loginLocal).mockResolvedValueOnce({
+      accessToken: 'test-token',
+      tokenType: 'Bearer',
+      expiresAt: '2026-09-09T00:00:00+09:00',
+    })
+    vi.mocked(getCurrentUser).mockResolvedValueOnce({ onboardingCompleted } as UserMe)
+
+    const pinia = createPinia()
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push(loginPath)
+    await router.isReady()
+    const replaceSpy = vi.spyOn(router, 'replace')
+    const wrapper = mount(LoginView, { global: { plugins: [pinia, router] } })
+
+    const button = wrapper.findAll('button').find((item) => item.text().includes('데모 계정'))
+    if (!button) throw new Error('데모 로그인 버튼을 찾지 못했습니다.')
+    await button.trigger('click')
+    await flushPromises()
+    return replaceSpy
+  }
+
+  it('로그아웃 상태에서 열었던 경로를 로그인 뒤 그대로 연다 (딥링크)', async () => {
+    const replaceSpy = await demoLoginFrom('/login?redirect=%2Fmap%2Fbehaviors%2F7%3Ftab%3Dreviews')
+    expect(replaceSpy).toHaveBeenCalledWith('/map/behaviors/7?tab=reviews')
+  })
+
+  it('앱 밖으로 나가는 redirect 값은 홈으로 바꾼다', async () => {
+    const replaceSpy = await demoLoginFrom('/login?redirect=%2F%2Fevil.example%2Fphish')
+    expect(replaceSpy).toHaveBeenCalledWith('/')
+  })
+
+  it('온보딩 전 사용자는 딥링크가 있어도 온보딩으로 보낸다', async () => {
+    const replaceSpy = await demoLoginFrom('/login?redirect=%2Fmap', false)
+    expect(replaceSpy).toHaveBeenCalledWith('/onboarding')
+  })
 })

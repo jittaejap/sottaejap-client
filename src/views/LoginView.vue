@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { IconMessageCircle, IconUserCircle } from '@tabler/icons-vue'
 
 import heroImage from '@/assets/images/login/hero.png'
@@ -8,23 +8,35 @@ import logoImage from '@/assets/images/login/logo.png'
 import { loginKakao, loginLocal } from '@/api/service'
 import { useUserStore } from '@/stores/user'
 
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const loginError = ref('')
 const loggingIn = ref(false)
 const kakaoStateKey = 'sottaejap-kakao-oauth-state'
+// 카카오는 전체 페이지를 떠났다 돌아오므로 `redirect` 쿼리가 살아남지 않는다. `state`처럼 세션에 둔다.
+const kakaoRedirectKey = 'sottaejap-kakao-oauth-redirect'
+
+/**
+ * 진입 가드가 남긴 `redirect` 쿼리. 로그아웃 상태에서 열었던 경로를 로그인 뒤 그대로 연다.
+ * 앱 안 경로(`/`로 시작)만 받는다. `//evil.example`처럼 밖으로 나가는 값은 홈으로 바꾼다.
+ */
+function loginRedirectTarget(value: unknown) {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/'
+}
 
 // 토큰과 `GET /users/me` 결과를 스토어가 함께 보관한다. 진입 가드가 그 값을 근거로 분기한다.
-async function finishLogin(accessToken: string) {
+async function finishLogin(accessToken: string, redirectTarget: string) {
   await userStore.signIn(accessToken)
-  await router.replace(userStore.onboardingCompleted ? '/' : '/onboarding')
+  await router.replace(userStore.onboardingCompleted ? redirectTarget : '/onboarding')
 }
 
 async function startDemo() {
   loggingIn.value = true
   loginError.value = ''
   try {
-    await finishLogin((await loginLocal()).accessToken)
+    const { accessToken } = await loginLocal()
+    await finishLogin(accessToken, loginRedirectTarget(route.query.redirect))
   } catch {
     userStore.signOut()
     loginError.value = '로그인하지 못했어요. 잠시 후 다시 시도해주세요.'
@@ -42,6 +54,7 @@ function startKakao() {
   }
   const state = crypto.randomUUID()
   sessionStorage.setItem(kakaoStateKey, state)
+  sessionStorage.setItem(kakaoRedirectKey, loginRedirectTarget(route.query.redirect))
   const authorize = new URL('https://kauth.kakao.com/oauth/authorize')
   authorize.searchParams.set('client_id', clientId)
   authorize.searchParams.set('redirect_uri', redirectUri)
@@ -56,7 +69,9 @@ onMounted(async () => {
   if (!code) return
   const state = query.get('state')
   const expectedState = sessionStorage.getItem(kakaoStateKey)
+  const redirectTarget = loginRedirectTarget(sessionStorage.getItem(kakaoRedirectKey))
   sessionStorage.removeItem(kakaoStateKey)
+  sessionStorage.removeItem(kakaoRedirectKey)
   window.history.replaceState({}, '', '/auth/callback')
   if (!state || state !== expectedState) {
     loginError.value = '카카오 로그인 요청을 확인할 수 없어요. 다시 시도해주세요.'
@@ -69,7 +84,8 @@ onMounted(async () => {
       loginError.value = '카카오 로그인 설정을 확인해주세요.'
       return
     }
-    await finishLogin((await loginKakao(code, redirectUri)).accessToken)
+    const { accessToken } = await loginKakao(code, redirectUri)
+    await finishLogin(accessToken, redirectTarget)
   } catch {
     userStore.signOut()
     loginError.value = '카카오 로그인에 실패했어요. 다시 시도해주세요.'

@@ -64,8 +64,11 @@ const router = createRouter({
 /** 진입 분기가 보는 상태. 라우터 밖에서도 검증할 수 있도록 이 두 값만 받는다. */
 type EntryState = { signedIn: boolean; onboardingCompleted: boolean }
 
-/** 이름만으로 판단한다. `to` 전체를 받으면 테스트에서 라우트를 통째로 만들어야 한다. */
-type EntryTarget = { name?: RouteRecordNameGeneric }
+/**
+ * 이름으로 판단하고, 로그인으로 보낼 때 돌아올 곳으로 `fullPath`를 쓴다.
+ * `to` 전체를 받으면 테스트에서 라우트를 통째로 만들어야 한다.
+ */
+type EntryTarget = { name?: RouteRecordNameGeneric; fullPath: string }
 
 /** 로그인 전에도 열려야 하는 화면. 여기까지 막으면 로그인할 방법이 없어진다. */
 const publicRouteNames = new Set(['login', 'auth-callback'])
@@ -73,14 +76,14 @@ const publicRouteNames = new Set(['login', 'auth-callback'])
 /**
  * FR-09-03 진입 분기. 보내야 하면 목적지를, 그대로 열어도 되면 null을 준다.
  *
- * - 로그인 전 → 어느 경로든 1L 로그인
+ * - 로그인 전 → 어느 경로든 1L 로그인. 가려던 경로는 `redirect` 쿼리에 남겨 로그인 뒤 그대로 연다
  * - 로그인했지만 온보딩 전 → 2-1 온보딩
  * - 둘 다 끝 → 원래 가려던 화면 (로그인 화면으로 되돌아오면 홈)
  */
 export function entryRedirect(to: EntryTarget, state: EntryState) {
   const isPublic = typeof to.name === 'string' && publicRouteNames.has(to.name)
 
-  if (!state.signedIn) return isPublic ? null : { name: 'login' }
+  if (!state.signedIn) return isPublic ? null : { name: 'login', query: { redirect: to.fullPath } }
   if (!state.onboardingCompleted) return to.name === 'onboarding' ? null : { name: 'onboarding' }
   return isPublic ? { name: 'home' } : null
 }

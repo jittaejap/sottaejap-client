@@ -12,39 +12,60 @@ const 온보딩전 = { signedIn: true, onboardingCompleted: false }
 const 완료 = { signedIn: true, onboardingCompleted: true }
 
 describe('FR-09-03 진입 분기', () => {
+  const login = (redirect: string) => ({ name: 'login', query: { redirect } })
+
   it('로그인 전에는 어느 화면을 열어도 1L 로그인으로 보낸다', () => {
-    expect(entryRedirect({ name: 'home' }, 로그인전)).toEqual({ name: 'login' })
-    expect(entryRedirect({ name: 'map' }, 로그인전)).toEqual({ name: 'login' })
-    expect(entryRedirect({ name: 'me' }, 로그인전)).toEqual({ name: 'login' })
-    expect(entryRedirect({ name: 'budget-settings' }, 로그인전)).toEqual({ name: 'login' })
+    expect(entryRedirect({ name: 'home', fullPath: '/' }, 로그인전)).toEqual(login('/'))
+    expect(entryRedirect({ name: 'map', fullPath: '/map' }, 로그인전)).toEqual(login('/map'))
+    expect(entryRedirect({ name: 'me', fullPath: '/me' }, 로그인전)).toEqual(login('/me'))
+    expect(entryRedirect({ name: 'budget-settings', fullPath: '/me/budget' }, 로그인전)).toEqual(
+      login('/me/budget'),
+    )
+  })
+
+  it('로그인으로 보낼 때 가려던 경로를 쿼리까지 그대로 남긴다 — 로그인 뒤 딥링크를 여는 근거다', () => {
+    expect(
+      entryRedirect(
+        { name: 'behavior-detail', fullPath: '/map/behaviors/7?tab=reviews' },
+        로그인전,
+      ),
+    ).toEqual(login('/map/behaviors/7?tab=reviews'))
   })
 
   it('로그인 화면 자체는 막지 않는다 — 막으면 무한 이동이 된다', () => {
-    expect(entryRedirect({ name: 'login' }, 로그인전)).toBeNull()
+    expect(entryRedirect({ name: 'login', fullPath: '/login' }, 로그인전)).toBeNull()
   })
 
   it('카카오 콜백은 로그인 전에도 열어 준다 — 막으면 code를 버리게 된다', () => {
-    expect(entryRedirect({ name: 'auth-callback' }, 로그인전)).toBeNull()
+    expect(
+      entryRedirect({ name: 'auth-callback', fullPath: '/auth/callback' }, 로그인전),
+    ).toBeNull()
   })
 
   it('로그인했지만 온보딩 전이면 2-1 온보딩으로 보낸다', () => {
-    expect(entryRedirect({ name: 'home' }, 온보딩전)).toEqual({ name: 'onboarding' })
-    expect(entryRedirect({ name: 'transactions' }, 온보딩전)).toEqual({ name: 'onboarding' })
+    expect(entryRedirect({ name: 'home', fullPath: '/' }, 온보딩전)).toEqual({ name: 'onboarding' })
+    expect(entryRedirect({ name: 'transactions', fullPath: '/transactions' }, 온보딩전)).toEqual({
+      name: 'onboarding',
+    })
   })
 
   it('온보딩 화면에서는 다시 온보딩으로 보내지 않는다', () => {
-    expect(entryRedirect({ name: 'onboarding' }, 온보딩전)).toBeNull()
+    expect(entryRedirect({ name: 'onboarding', fullPath: '/onboarding' }, 온보딩전)).toBeNull()
   })
 
   it('온보딩까지 마치면 원래 가려던 화면을 그대로 연다', () => {
-    expect(entryRedirect({ name: 'home' }, 완료)).toBeNull()
-    expect(entryRedirect({ name: 'transactions' }, 완료)).toBeNull()
-    expect(entryRedirect({ name: 'behavior-detail' }, 완료)).toBeNull()
+    expect(entryRedirect({ name: 'home', fullPath: '/' }, 완료)).toBeNull()
+    expect(entryRedirect({ name: 'transactions', fullPath: '/transactions' }, 완료)).toBeNull()
+    expect(
+      entryRedirect({ name: 'behavior-detail', fullPath: '/map/behaviors/7' }, 완료),
+    ).toBeNull()
   })
 
   it('이미 로그인한 사람이 로그인 화면을 열면 진행 상태에 맞는 곳으로 돌려보낸다', () => {
-    expect(entryRedirect({ name: 'login' }, 온보딩전)).toEqual({ name: 'onboarding' })
-    expect(entryRedirect({ name: 'login' }, 완료)).toEqual({ name: 'home' })
+    expect(entryRedirect({ name: 'login', fullPath: '/login' }, 온보딩전)).toEqual({
+      name: 'onboarding',
+    })
+    expect(entryRedirect({ name: 'login', fullPath: '/login' }, 완료)).toEqual({ name: 'home' })
   })
 })
 
@@ -63,6 +84,7 @@ describe('라우터에 가드가 실제로 붙어 있다', () => {
     await router.isReady()
 
     expect(router.currentRoute.value.path).toBe('/login')
+    expect(router.currentRoute.value.query.redirect).toBe('/me')
   })
 
   it('로그인하고 온보딩까지 마치면 /me가 그대로 열린다', async () => {
