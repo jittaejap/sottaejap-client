@@ -15,12 +15,16 @@ describe('FR-09-03 진입 분기', () => {
   const login = (redirect: string) => ({ name: 'login', query: { redirect } })
 
   it('로그인 전에는 어느 화면을 열어도 1L 로그인으로 보낸다', () => {
-    expect(entryRedirect({ name: 'home', fullPath: '/' }, 로그인전)).toEqual(login('/'))
+    expect(entryRedirect({ name: 'home', fullPath: '/' }, 로그인전)).toEqual({ name: 'login' })
     expect(entryRedirect({ name: 'map', fullPath: '/map' }, 로그인전)).toEqual(login('/map'))
     expect(entryRedirect({ name: 'me', fullPath: '/me' }, 로그인전)).toEqual(login('/me'))
     expect(entryRedirect({ name: 'budget-settings', fullPath: '/me/budget' }, 로그인전)).toEqual(
       login('/me/budget'),
     )
+  })
+
+  it('홈에서 튕길 때는 redirect를 남기지 않는다 — 홈은 로그인 뒤 기본 목적지다', () => {
+    expect(entryRedirect({ name: 'home', fullPath: '/' }, 로그인전)).not.toHaveProperty('query')
   })
 
   it('로그인으로 보낼 때 가려던 경로를 쿼리까지 그대로 남긴다 — 로그인 뒤 딥링크를 여는 근거다', () => {

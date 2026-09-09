@@ -77,13 +77,19 @@ const publicRouteNames = new Set(['login', 'auth-callback'])
  * FR-09-03 진입 분기. 보내야 하면 목적지를, 그대로 열어도 되면 null을 준다.
  *
  * - 로그인 전 → 어느 경로든 1L 로그인. 가려던 경로는 `redirect` 쿼리에 남겨 로그인 뒤 그대로 연다
+ *   (홈은 로그인 뒤 기본 목적지라 남기지 않는다)
  * - 로그인했지만 온보딩 전 → 2-1 온보딩
  * - 둘 다 끝 → 원래 가려던 화면 (로그인 화면으로 되돌아오면 홈)
  */
 export function entryRedirect(to: EntryTarget, state: EntryState) {
   const isPublic = typeof to.name === 'string' && publicRouteNames.has(to.name)
 
-  if (!state.signedIn) return isPublic ? null : { name: 'login', query: { redirect: to.fullPath } }
+  if (!state.signedIn) {
+    if (isPublic) return null
+    return to.fullPath === '/'
+      ? { name: 'login' }
+      : { name: 'login', query: { redirect: to.fullPath } }
+  }
   if (!state.onboardingCompleted) return to.name === 'onboarding' ? null : { name: 'onboarding' }
   return isPublic ? { name: 'home' } : null
 }
