@@ -60,6 +60,9 @@ async function finishLogin(accessToken: string, redirectTarget: string) {
   await router.replace(userStore.onboardingCompleted ? redirectTarget : '/onboarding')
 }
 
+// 데모 계정은 운영 빌드에서 잠시 감춘다 — 운영 화면의 회고 후보 확인은 카카오 계정으로만 한다.
+const showDemoLogin = import.meta.env.DEV
+
 async function startDemo() {
   loggingIn.value = true
   loginError.value = ''
@@ -158,6 +161,7 @@ onMounted(async () => {
         카카오로 시작하기
       </button>
       <button
+        v-if="showDemoLogin"
         type="button"
         class="border-line bg-surface text-ink flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border text-base font-semibold"
         :disabled="loggingIn"
