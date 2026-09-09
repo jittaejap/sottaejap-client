@@ -14,7 +14,7 @@ describe('하단 탭', () => {
     const wrapper = mount(AppBottomNav, { global: { plugins: [router] } })
     const links = wrapper.findAll('a')
 
-    expect(links.map((link) => link.text())).toEqual(['홈', 'AI채팅', '지도', '거래내역'])
+    expect(links.map((link) => link.text())).toEqual(['홈', '채팅', '지도', '거래내역'])
     expect(links.map((link) => link.attributes('href'))).toEqual([
       '/',
       '/chat',

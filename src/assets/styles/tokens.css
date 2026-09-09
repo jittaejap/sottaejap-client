@@ -4,8 +4,7 @@
  * 브랜드 오렌지·카카오·만족도 3색은 피그마 목업에서 픽셀 샘플링한 값이다.
  */
 @theme {
-  --font-sans:
-    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
 
   --color-surface: #ffffff;
   --color-surface-muted: #f7f8fa;
