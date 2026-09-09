@@ -25,7 +25,13 @@ import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
 import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import savingsImage from '@/assets/images/savings-summary.png'
 import { useMapStore } from '@/stores/map'
-import { getGoals, getMonthlyReport, getNotifications, getSuggestions } from '@/api/service'
+import {
+  getAnalysis,
+  getGoals,
+  getMonthlyReport,
+  getNotifications,
+  getSuggestions,
+} from '@/api/service'
 import type { Goal, MonthlyReport, Suggestion } from '@/api/types'
 
 const router = useRouter()
@@ -36,6 +42,8 @@ const serverGoal = ref<Goal | null>(null)
 const monthlyReport = ref<MonthlyReport | null>(null)
 const adoptedSuggestions = ref<Suggestion[]>([])
 const unreadCount = ref(0)
+/** `GET /analysis`의 `highlight` (FR-11-03 · E-75). 못 받으면 카드를 숨긴다 — 문장을 짓지 않는다. */
+const analysisHighlight = ref<string | null>(null)
 const goal = computed(() => ({
   label: serverGoal.value?.name ?? '등록된 목표 없음',
   sub: serverGoal.value ? `${serverGoal.value.name} 마련` : '목표 자금 마련',
@@ -75,18 +83,21 @@ const savingsSummary = computed(() => {
 })
 
 onMounted(async () => {
-  const [goalsResult, reportResult, suggestionsResult, notificationsResult] =
+  const [goalsResult, reportResult, suggestionsResult, notificationsResult, analysisResult] =
     await Promise.allSettled([
       getGoals(),
       getMonthlyReport(),
       getSuggestions('ADOPTED'),
       getNotifications(),
+      getAnalysis(),
     ])
   if (goalsResult.status === 'fulfilled') serverGoal.value = goalsResult.value[0] ?? null
   if (reportResult.status === 'fulfilled') monthlyReport.value = reportResult.value
   if (suggestionsResult.status === 'fulfilled') adoptedSuggestions.value = suggestionsResult.value
   if (notificationsResult.status === 'fulfilled')
     unreadCount.value = notificationsResult.value.unreadCount
+  if (analysisResult.status === 'fulfilled')
+    analysisHighlight.value = analysisResult.value.highlight.trim() || null
 })
 
 /** 03 `3-1` 3. 보조 지표 — `3-2 반복 횟수 변화` (FR-08-07). 전월이 없으면 이번 달 값만 말한다. */
@@ -326,6 +337,7 @@ function openBehavior(behaviorId: number) {
             </div>
 
             <button
+              v-if="analysisHighlight !== null"
               type="button"
               class="border-brand bg-brand-soft flex min-h-[122px] w-full items-center rounded-[20px] border p-4 text-left"
               @click="router.push('/chat')"
@@ -338,9 +350,9 @@ function openBehavior(behaviorId: number) {
                   />
                   AI 브리핑</span
                 >
-                <span class="text-ink-muted text-sm font-bold leading-5"
-                  >심야 배달을 줄인 덕분에 식비가<br />18% 줄었어요! 👍</span
-                >
+                <span class="text-ink-muted text-sm leading-5 font-bold">{{
+                  analysisHighlight
+                }}</span>
                 <span class="text-ink-faint text-[10px] font-medium">자세히 보기 &gt;</span>
               </span>
               <img
