@@ -15,7 +15,7 @@ const { candidates } = vi.hoisted(() => ({
     merchant: index === 0 ? '배달의민족' : `가맹점 ${index + 1}`,
     amount: 10_000 + index,
     category: '식사',
-    timeSlot: 'AFTERNOON',
+    timeSlot: 'DAY',
     reasonCode: 'ONBOARDING_SAMPLE',
     reason: '온보딩 표본',
   })),

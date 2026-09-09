@@ -1,4 +1,4 @@
-import type { Satisfaction } from '@/api/enums'
+import type { Satisfaction, SuggestionStatus } from '@/api/enums'
 import { httpClient } from '@/api/httpClient'
 import type {
   Analysis,
@@ -126,7 +126,7 @@ export async function getAnalysis() {
   return response.data
 }
 
-export async function getSuggestions(status?: Suggestion['status']) {
+export async function getSuggestions(status?: SuggestionStatus) {
   const response = await httpClient.get<{ suggestions: Suggestion[] }>('/suggestions', {
     params: status ? { status } : undefined,
   })

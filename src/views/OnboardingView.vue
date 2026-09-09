@@ -31,6 +31,7 @@ import {
   uploadTransactions,
 } from '@/api/service'
 import type { Satisfaction } from '@/api/enums'
+import { apiErrorMessage } from '@/api/errorMessage'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -260,8 +261,8 @@ async function answerReview(value: string) {
         answers: { ...reviewAnswers.value },
         messages: reviewMessages.value.map((message) => ({ ...message })),
       })
-    } catch {
-      saveError.value = '회고를 저장하지 못했어요. 다시 시도해주세요.'
+    } catch (error) {
+      saveError.value = apiErrorMessage(error, '회고를 저장하지 못했어요. 다시 시도해주세요.')
     } finally {
       saving.value = false
     }
@@ -290,8 +291,8 @@ async function finishOnboarding() {
     // 이 갱신이 없으면 홈으로 이동하는 순간 진입 가드가 다시 온보딩으로 되돌린다.
     userStore.markOnboardingCompleted()
     await router.push('/')
-  } catch {
-    saveError.value = '온보딩을 완료하지 못했어요. 다시 시도해주세요.'
+  } catch (error) {
+    saveError.value = apiErrorMessage(error, '온보딩을 완료하지 못했어요. 다시 시도해주세요.')
   } finally {
     saving.value = false
   }
@@ -403,8 +404,8 @@ async function next() {
     ) {
       beginReview()
     }
-  } catch {
-    saveError.value = '입력 내용을 저장하지 못했어요. 다시 시도해주세요.'
+  } catch (error) {
+    saveError.value = apiErrorMessage(error, '입력 내용을 저장하지 못했어요. 다시 시도해주세요.')
   } finally {
     saving.value = false
   }

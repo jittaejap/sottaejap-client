@@ -5,8 +5,10 @@ import { createPinia } from 'pinia'
 
 import { routes } from '@/router'
 import ChatView from '@/views/ChatView.vue'
+import { adoptSuggestion, getSuggestions } from '@/api/service'
 
-vi.mock('@/api/service', () => ({
+vi.mock('@/api/service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api/service')>()),
   getSuggestions: vi.fn().mockResolvedValue([]),
   getGoals: vi.fn().mockResolvedValue([]),
   getAnalysis: vi.fn().mockResolvedValue({
@@ -48,6 +50,34 @@ async function runRetrospect(wrapper: VueWrapper) {
 }
 
 describe('AI채팅 회고 흐름', () => {
+  it('서버 adjustCount를 줄일 횟수로 표시하고 같은 값으로 채택한다', async () => {
+    vi.mocked(getSuggestions).mockResolvedValueOnce([
+      {
+        id: 7,
+        behaviorId: 12,
+        behaviorName: '심야 배달',
+        monthlyTotalAmount: 96_000,
+        avgAmount: 12_000,
+        txCount: 8,
+        adjustedSatisfaction: -0.42,
+        quadrant: 'PRIORITY',
+        adjustCount: 6,
+        expectedSaving: 72_000,
+        goalId: null,
+        status: 'PROPOSED',
+        reason: '횟수를 줄여보세요.',
+      },
+    ])
+    const { wrapper } = await mountChat()
+    await runRetrospect(wrapper)
+
+    expect(getSuggestions).toHaveBeenCalledWith('PROPOSED')
+    expect(wrapper.text()).toContain('월 8회 → 월 2회')
+    expect(wrapper.text()).toContain('월 72,000원')
+    await click(wrapper, '제안만 채택하기')
+    expect(adoptSuggestion).toHaveBeenCalledWith(7, { adjustCount: 6 })
+  })
+
   it('각 AI 메시지는 대화 시점의 프로필 에셋을 유지한다', async () => {
     const { wrapper } = await mountChat()
 
@@ -119,12 +149,10 @@ describe('AI채팅 회고 흐름', () => {
     await runRetrospect(wrapper)
     expect(wrapper.text()).toContain('AI가 분석한 최적의 추천 빈도')
     expect(wrapper.text()).toContain('월 43,400원')
-    expect(wrapper.text()).toContain('여행 자금 달성률')
-    expect(wrapper.text()).toContain('35%')
+    expect(wrapper.text()).toContain('등록된 목표가 없어 제안만 채택돼요')
 
     await click(wrapper, '추천 빈도 줄이기')
     expect(wrapper.text()).toContain('월 65,100원')
-    expect(wrapper.text()).toContain('38%')
   })
 
   it('도움말을 누르면 제안 근거가 펼쳐지고 다시 누르면 접힌다', async () => {

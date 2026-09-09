@@ -1,20 +1,53 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { IconBulb, IconClipboardText } from '@tabler/icons-vue'
 
+import type { NotificationType } from '@/api/enums'
 import type { NotificationItem } from '@/api/types'
 import { getNotifications, readNotification } from '@/api/service'
+import { apiErrorMessage } from '@/api/errorMessage'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
+
+const router = useRouter()
 
 const notifications = ref<NotificationItem[]>([])
 const loadError = ref('')
 
-const groups = computed(() => [
-  {
-    label: '알림',
-    items: notifications.value.map((item) => ({
+type DisplayNotification = {
+  id: number
+  refId: number
+  type: NotificationType
+  title: string
+  body: string
+  at: string
+  unread: boolean
+  icon: typeof IconClipboardText
+  createdAt: string
+}
+
+function groupLabel(createdAt: string) {
+  const now = new Date()
+  const date = new Date(createdAt)
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dayDiff = Math.floor(
+    (startToday.getTime() -
+      new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) /
+      86_400_000,
+  )
+  if (dayDiff <= 0) return '오늘'
+  if (dayDiff === 1) return '어제'
+  if (dayDiff < 7) return '이번 주'
+  return '이전 알림'
+}
+
+const groups = computed(() => {
+  const grouped = new Map<string, DisplayNotification[]>()
+  for (const item of notifications.value) {
+    const display: DisplayNotification = {
       id: item.id,
+      refId: item.refId,
       type: item.type,
       title: item.type === 'RETROSPECT_DUE' ? '회고 요청' : '개선방안이 도착했어요',
       body: item.message,
@@ -26,27 +59,43 @@ const groups = computed(() => [
       }).format(new Date(item.createdAt)),
       unread: !item.isRead,
       icon: item.type === 'RETROSPECT_DUE' ? IconClipboardText : IconBulb,
-    })),
-  },
-])
+      createdAt: item.createdAt,
+    }
+    const label = groupLabel(item.createdAt)
+    grouped.set(label, [...(grouped.get(label) ?? []), display])
+  }
+  return ['오늘', '어제', '이번 주', '이전 알림']
+    .filter((label) => grouped.has(label))
+    .map((label) => ({ label, items: grouped.get(label)! }))
+})
 
 onMounted(async () => {
   try {
     notifications.value = (await getNotifications()).notifications
-  } catch {
-    loadError.value = '알림을 불러오지 못했어요.'
+  } catch (error) {
+    loadError.value = apiErrorMessage(error, '알림을 불러오지 못했어요.')
   }
 })
 
-async function markRead(item: { id: number; unread: boolean }) {
-  if (!item.unread) return
-  try {
-    await readNotification(item.id)
-    const target = notifications.value.find((notification) => notification.id === item.id)
-    if (target) target.isRead = true
-  } catch {
-    loadError.value = '알림을 읽음 처리하지 못했어요.'
+async function openNotification(item: DisplayNotification) {
+  loadError.value = ''
+  if (item.unread) {
+    try {
+      await readNotification(item.id)
+      const target = notifications.value.find((notification) => notification.id === item.id)
+      if (target) target.isRead = true
+    } catch (error) {
+      loadError.value = apiErrorMessage(error, '알림을 읽음 처리하지 못했어요. 다시 눌러주세요.')
+      return
+    }
   }
+  await router.push({
+    name: 'chat',
+    query:
+      item.type === 'RETROSPECT_DUE'
+        ? { mode: 'retrospect', transactionId: String(item.refId) }
+        : { mode: 'analysis', step: 'improvement', suggestionId: String(item.refId) },
+  })
 }
 </script>
 
@@ -67,12 +116,12 @@ async function markRead(item: { id: number; unread: boolean }) {
         class="space-y-2"
       >
         <h2 class="text-ink-muted text-sm font-semibold">{{ group.label }}</h2>
-        <RouterLink
+        <button
           v-for="item in group.items"
           :key="item.id"
-          to="/chat"
-          class="border-line bg-surface flex items-start gap-3 rounded-2xl border p-4"
-          @click="markRead(item)"
+          type="button"
+          class="border-line bg-surface flex w-full items-start gap-3 rounded-2xl border p-4 text-left"
+          @click="openNotification(item)"
         >
           <span
             class="flex size-12 shrink-0 items-center justify-center rounded-full"
@@ -94,7 +143,7 @@ async function markRead(item: { id: number; unread: boolean }) {
             class="mt-1 size-2 shrink-0 rounded-full"
             :class="item.unread ? 'bg-brand' : 'bg-line'"
           ></span>
-        </RouterLink>
+        </button>
       </section>
     </main>
 

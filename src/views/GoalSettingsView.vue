@@ -12,15 +12,17 @@ import goalIndependence from '@/assets/images/onboarding/goal-independence.png'
 import goalTravel from '@/assets/images/onboarding/goal-travel.png'
 import { useSettingsStore, type GoalType } from '@/stores/settings'
 import { createGoal, getGoals, updateGoal } from '@/api/service'
+import { ApiError } from '@/api/apiError'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const settings = useSettingsStore()
+const userStore = useUserStore()
 const goalType = ref<GoalType>(settings.goalType)
 const customName = ref(settings.goalType === 'CUSTOM' ? settings.goalName : '')
 const amount = ref(settings.goalAmount)
 const period = ref(settings.goalPeriod)
 const goalId = ref<number | null>(null)
-const currentAmount = ref(0)
 const saving = ref(false)
 const saveError = ref('')
 
@@ -29,12 +31,10 @@ onMounted(async () => {
     const [goal] = await getGoals()
     if (!goal) return
     goalId.value = goal.id
-    currentAmount.value = goal.currentAmount
     amount.value = goal.targetAmount
     customName.value = goal.name
-    goalType.value = 'CUSTOM'
-  } catch {
-    saveError.value = '저장된 목표를 불러오지 못했어요.'
+  } catch (error) {
+    saveError.value = await apiErrorMessage(error, '저장된 목표를 불러오지 못했어요.')
   }
 })
 
@@ -75,16 +75,30 @@ async function save() {
       await updateGoal(goalId.value, {
         name,
         targetAmount: amount.value,
-        currentAmount: currentAmount.value,
       })
     }
     settings.updateGoal({ type: goalType.value, name, amount: amount.value, period: period.value })
     await router.push('/me')
-  } catch {
-    saveError.value = '목표를 저장하지 못했어요. 다시 시도해주세요.'
+  } catch (error) {
+    saveError.value = await apiErrorMessage(error, '목표를 저장하지 못했어요. 다시 시도해주세요.')
   } finally {
     saving.value = false
   }
+}
+
+async function apiErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof ApiError)) return fallback
+  if (error.code === 'UNAUTHORIZED') {
+    userStore.signOut()
+    await router.push({ name: 'login' })
+    return '로그인이 만료됐어요.'
+  }
+  if (error.code === 'ONBOARDING_REQUIRED') {
+    await router.push({ name: 'onboarding' })
+    return '먼저 온보딩을 완료해 주세요.'
+  }
+  if (error.code === 'INVALID_INPUT') return '목표 이름과 금액을 다시 확인해 주세요.'
+  return fallback
 }
 </script>
 

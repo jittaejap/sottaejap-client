@@ -6,8 +6,9 @@ withDefaults(
   defineProps<{
     shortcuts?: boolean
     activeShortcut?: 'retrospect' | 'analysis' | 'qna'
+    disabled?: boolean
   }>(),
-  { shortcuts: true, activeShortcut: 'retrospect' },
+  { shortcuts: true, activeShortcut: 'retrospect', disabled: false },
 )
 
 const emit = defineEmits<{
@@ -89,6 +90,8 @@ function send() {
       <input
         v-model="draft"
         type="text"
+        maxlength="500"
+        :disabled="disabled"
         placeholder="궁금한 내용을 입력해 주세요"
         class="text-ink placeholder:text-ink-faint flex-1 bg-transparent text-sm outline-none"
         @keyup.enter="send"
@@ -97,6 +100,8 @@ function send() {
         type="button"
         class="bg-brand text-surface flex size-8 shrink-0 items-center justify-center rounded-full"
         aria-label="보내기"
+        :disabled="disabled"
+        :class="{ 'opacity-40': disabled }"
         @click="send"
       >
         <IconArrowUp :size="16" />

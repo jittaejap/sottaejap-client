@@ -7,6 +7,7 @@ import AppTopBar from '@/components/common/AppTopBar.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import { useSettingsStore } from '@/stores/settings'
 import { updateSettings } from '@/api/service'
+import { apiErrorMessage } from '@/api/errorMessage'
 
 const router = useRouter()
 const settings = useSettingsStore()
@@ -23,8 +24,8 @@ async function save() {
     await updateSettings({ monthlyBudget: budget.value })
     settings.updateBudget(budget.value)
     await router.push('/me')
-  } catch {
-    saveError.value = '월 예산을 저장하지 못했어요. 다시 시도해주세요.'
+  } catch (error) {
+    saveError.value = apiErrorMessage(error, '월 예산을 저장하지 못했어요. 다시 시도해주세요.')
   } finally {
     saving.value = false
   }

@@ -154,14 +154,17 @@ const mockMap: SatisfactionMap = {
   ],
 }
 
-const selectedId = ref<number | null>(6)
+const selectedId = ref<number | null>(null)
 const filter = ref<string>('전체')
+const usingDemoData = ref(false)
+const loading = ref(true)
 
 onMounted(async () => {
   try {
     mapStore.data = await getSatisfactionMap()
   } catch {
     mapStore.data = mockMap
+    usingDemoData.value = true
   }
   const behaviorId = Number(route.params.behaviorId)
   if (Number.isInteger(behaviorId)) {
@@ -171,6 +174,8 @@ onMounted(async () => {
       subview.value = 'behavior'
     }
   }
+  selectedId.value ??= mapStore.sortedPoints[0]?.behaviorId ?? null
+  loading.value = false
 })
 
 const points = computed(() => mapStore.sortedPoints)
@@ -251,8 +256,23 @@ function selectPoint(behaviorId: number) {
         >
           <template v-if="subview === 'map'">
             <p class="text-ink text-lg font-bold">만족도와 지출 부담을 함께 확인해보세요</p>
+            <p
+              v-if="usingDemoData"
+              class="bg-brand-soft text-brand rounded-xl px-3 py-2 text-xs font-medium"
+            >
+              서버 데이터를 불러오지 못해 현재 예시 데이터를 보여드리고 있어요.
+            </p>
+            <p
+              v-if="loading"
+              class="text-ink-muted py-10 text-center text-sm"
+            >
+              만족도 지도를 불러오는 중이에요.
+            </p>
 
-            <div class="border-line rounded-2xl border p-3">
+            <div
+              v-else
+              class="border-line rounded-2xl border p-3"
+            >
               <div class="flex flex-wrap gap-2">
                 <button
                   type="button"

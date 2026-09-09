@@ -1,4 +1,13 @@
-import type { AuthProvider, EvaluationStatus, Quadrant, Verdict } from '@/api/enums'
+import type {
+  AuthProvider,
+  EvaluationStatus,
+  NotificationType,
+  Quadrant,
+  ReasonCode,
+  SuggestionStatus,
+  TimeSlot,
+  Verdict,
+} from '@/api/enums'
 
 /** `GET /users/me` (05 §1 #2) */
 export interface UserMe {
@@ -28,8 +37,8 @@ export interface Goal {
   targetAmount: number
   currentAmount: number
   adoptedSaving: number
-  achievementRate: number
-  projectedRate: number
+  achievementRate: number | null
+  projectedRate: number | null
 }
 
 export interface RetrospectCandidate {
@@ -38,8 +47,8 @@ export interface RetrospectCandidate {
   merchant: string
   amount: number
   category: string
-  timeSlot: string
-  reasonCode: string
+  timeSlot: TimeSlot
+  reasonCode: ReasonCode
   reason: string
 }
 
@@ -55,7 +64,7 @@ export interface Suggestion {
   adjustCount: number
   expectedSaving: number
   goalId: number | null
-  status: 'PROPOSED' | 'ADOPTED' | 'REJECTED'
+  status: SuggestionStatus
   reason: string
 }
 
@@ -70,7 +79,7 @@ export interface Analysis {
   pending: { clusterCount: number; monthlyTotalAmount: number; share: number | null }
   byCategory: {
     category: string
-    dominantTimeSlot: string | null
+    dominantTimeSlot: TimeSlot | null
     avgAmount: number | null
     monthlyTotalAmount: number
     verdict: Verdict | null
@@ -80,7 +89,7 @@ export interface Analysis {
 
 export interface NotificationItem {
   id: number
-  type: 'RETROSPECT_DUE' | 'SUGGESTION'
+  type: NotificationType
   refId: number
   message: string
   isRead: boolean
@@ -91,11 +100,11 @@ export interface MonthlyReport {
   yearMonth: string
   finalized: boolean
   totalSpending: number
-  previousTotalSpending: number
-  savedAmount: number
+  previousTotalSpending: number | null
+  savedAmount: number | null
   unsatisfiedCount: number
   repeatCount: number
-  previousRepeatCount: number
+  previousRepeatCount: number | null
   goalAllocations: { goalId: number; amount: number }[]
 }
 
@@ -121,7 +130,7 @@ export interface BehaviorTransaction {
   merchant: string
   amount: number
   category: string
-  timeSlot: string
+  timeSlot: TimeSlot
   behaviorId: number
 }
 
