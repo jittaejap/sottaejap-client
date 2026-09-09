@@ -86,8 +86,12 @@ export function entryRedirect(to: EntryTarget, state: EntryState) {
 }
 
 // 분기 자체는 위 순수 함수가 갖는다. 여기서는 스토어에서 값을 꺼내 넘기기만 한다.
-router.beforeEach((to) => {
-  const { signedIn, onboardingCompleted } = useUserStore()
+// 새로고침 직후에는 `sessionStorage`의 토큰으로 `GET /users/me`까지 되살린 뒤 분기해야
+// 온보딩을 마친 사람이 온보딩으로 되튕기지 않는다. 복원은 한 번만 돌고 이후 호출은 바로 끝난다.
+router.beforeEach(async (to) => {
+  const userStore = useUserStore()
+  await userStore.restore()
+  const { signedIn, onboardingCompleted } = userStore
   return entryRedirect(to, { signedIn, onboardingCompleted }) ?? true
 })
 

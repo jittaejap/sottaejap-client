@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/api/service', () => ({ getCurrentUser: vi.fn() }))
@@ -49,9 +49,16 @@ describe('FR-09-03 진입 분기', () => {
 })
 
 describe('라우터에 가드가 실제로 붙어 있다', () => {
-  it('로그인 전에 /me로 들어가면 /login으로 바뀐다', async () => {
+  beforeEach(async () => {
     setActivePinia(createPinia())
+    sessionStorage.clear()
+    vi.mocked(getCurrentUser).mockReset()
+    // 라우터는 파일 안에서 하나를 같이 쓴다. 이미 /me에 있으면 push('/me')가 가드를 타지 않으므로
+    // 매번 로그인 화면에서 출발한다.
+    await router.replace('/login')
+  })
 
+  it('로그인 전에 /me로 들어가면 /login으로 바뀐다', async () => {
     await router.push('/me')
     await router.isReady()
 
@@ -61,12 +68,47 @@ describe('라우터에 가드가 실제로 붙어 있다', () => {
   it('로그인하고 온보딩까지 마치면 /me가 그대로 열린다', async () => {
     // 스토어 값을 손으로 세우면 httpClient의 토큰과 어긋난다. 실제 로그인 경로를 탄다.
     vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
-    setActivePinia(createPinia())
     await useUserStore().signIn('test-token')
 
     await router.push('/me')
     await router.isReady()
 
     expect(router.currentRoute.value.path).toBe('/me')
+  })
+
+  it('새로고침 뒤에도 온보딩을 마친 사람은 /me가 그대로 열린다 — 토큰만 되살리면 온보딩으로 튕긴다', async () => {
+    // 새로고침 직후를 흉내 낸다: sessionStorage에만 토큰이 남아 있고 스토어는 새로 만들어진다.
+    sessionStorage.setItem('sottaejap-access-token', 'saved')
+    vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
+    setActivePinia(createPinia())
+
+    await router.push('/me')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/me')
+    expect(getCurrentUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('새로고침 뒤 온보딩 전 사람은 /onboarding으로 돌아간다', async () => {
+    sessionStorage.setItem('sottaejap-access-token', 'saved')
+    vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: false } as never)
+    setActivePinia(createPinia())
+
+    await router.push('/me')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/onboarding')
+  })
+
+  it('저장된 토큰이 유효하지 않으면 /login으로 떨어진다', async () => {
+    sessionStorage.setItem('sottaejap-access-token', 'expired')
+    vi.mocked(getCurrentUser).mockRejectedValue(new Error('UNAUTHORIZED'))
+    setActivePinia(createPinia())
+
+    await router.push('/me')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(sessionStorage.getItem('sottaejap-access-token')).toBeNull()
   })
 })
