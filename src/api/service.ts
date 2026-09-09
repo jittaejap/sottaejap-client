@@ -1,4 +1,10 @@
-import type { CompanionTag, PurposeTag, Satisfaction, SuggestionStatus } from '@/api/enums'
+import type {
+  CompanionTag,
+  PurposeTag,
+  ReflectionStep,
+  Satisfaction,
+  SuggestionStatus,
+} from '@/api/enums'
 import { httpClient } from '@/api/httpClient'
 import type {
   Analysis,
@@ -7,6 +13,9 @@ import type {
   MonthlyReport,
   NotificationItem,
   RetrospectCandidate,
+  RetrospectChatMessage,
+  RetrospectChatResult,
+  RetrospectReflection,
   SatisfactionMap,
   Suggestion,
   TransactionUploadResult,
@@ -84,10 +93,15 @@ export async function startOnboarding(input: {
   return response.data.candidates
 }
 
-export async function getRetrospectCandidates(limit: number) {
+/**
+ * 05 §2 `GET /retrospects/candidates`.
+ * `range`를 주지 않으면 v1.7과 같이 `limit`만 적용한다 — 기존 호출부는 그대로다.
+ * 채팅 회고 진입(FR-03-08)은 오늘 포함 최근 3일을 실어 보낸다 (01 E-48).
+ */
+export async function getRetrospectCandidates(limit: number, range?: { from: string; to: string }) {
   const response = await httpClient.get<{ candidates: RetrospectCandidate[] }>(
     '/retrospects/candidates',
-    { params: { limit } },
+    { params: { limit, ...range } },
   )
   return response.data.candidates
 }
@@ -166,5 +180,21 @@ export async function getMonthlyReport(yearMonth?: string) {
   const response = await httpClient.get<MonthlyReport>('/reports/monthly', {
     params: yearMonth ? { yearMonth } : undefined,
   })
+  return response.data
+}
+
+/**
+ * 05 §2 `POST /retrospects/chat` (01 E-63) — 상태 없는 프록시다.
+ * 회고 행을 만들지 않는다. 저장은 언제나 `saveRetrospect`다.
+ * `message`는 `INTRO`에서만 생략할 수 있고 그 밖에는 필수이며 최대 500자다 (E-112).
+ */
+export async function chatRetrospect(input: {
+  transactionId: number
+  message?: string
+  step: ReflectionStep
+  reflection: RetrospectReflection
+  recentMessages: RetrospectChatMessage[]
+}) {
+  const response = await httpClient.post<RetrospectChatResult>('/retrospects/chat', input)
   return response.data
 }
