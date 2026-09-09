@@ -6,7 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '@/router'
 import HomeView from '@/views/HomeView.vue'
 import MapView from '@/views/MapView.vue'
+import { ApiError } from '@/api/apiError'
+import type {
+  BehaviorDetail,
+  BehaviorTransaction,
+  SatisfactionMap,
+  SatisfactionMapPoint,
+} from '@/api/types'
 import {
+  getBehavior,
   getGoals,
   getMonthlyReport,
   getNotifications,
@@ -17,14 +25,103 @@ import {
 vi.mock('@/api/service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/service')>()),
   getSatisfactionMap: vi.fn(),
+  getBehavior: vi.fn(),
   getGoals: vi.fn(),
   getMonthlyReport: vi.fn(),
   getSuggestions: vi.fn(),
   getNotifications: vi.fn(),
 }))
 
+function mapPoint(overrides: Partial<SatisfactionMapPoint> = {}): SatisfactionMapPoint {
+  return {
+    behaviorId: 42,
+    name: '실제 배달',
+    monthlyTotalAmount: 100_000,
+    avgAmount: 20_000,
+    txCount: 5,
+    burdenRatio: 0.1,
+    adjustedSatisfaction: -0.5,
+    retrospectCount: 3,
+    evaluationStatus: 'RESOLVED',
+    quadrant: 'PRIORITY',
+    verdict: 'ADJUST',
+    prescription: '실제 처방',
+    cta: null,
+    ...overrides,
+  }
+}
+
+function satisfactionMap(points: SatisfactionMapPoint[]): SatisfactionMap {
+  return {
+    analysisYearMonth: '2026-09',
+    axisX: {
+      label: '실제 지출 부담',
+      formula: 'MONTHLY_TOTAL_OVER_BUDGET',
+      monthlyBudget: 1_000_000,
+    },
+    axisY: { label: '실제 만족도', range: [-1, 1] },
+    boundaries: { x: 0.1, y: 0 },
+    points,
+  }
+}
+
+function behaviorDetail(overrides: Partial<BehaviorDetail> = {}): BehaviorDetail {
+  return {
+    behavior: {
+      behaviorId: 42,
+      name: '실제 배달',
+      clusterKey: '배달|NIGHT|충동|혼자',
+      parentId: null,
+      monthlyTotalAmount: 100_000,
+      avgAmount: 20_000,
+      txCount: 5,
+      retrospectCount: 3,
+      burdenRatio: 0.1,
+      adjustedSatisfaction: -0.5,
+      evaluationStatus: 'RESOLVED',
+      quadrant: 'PRIORITY',
+      verdict: 'ADJUST',
+    },
+    transactions: [],
+    ...overrides,
+  }
+}
+
+function transaction(id: number, merchant: string): BehaviorTransaction {
+  return {
+    id,
+    occurredAt: '2026-08-24T23:30:00+09:00',
+    merchant,
+    amount: 12_000,
+    category: '배달',
+    timeSlot: 'NIGHT',
+    behaviorId: 42,
+  }
+}
+
+function mountMap(router: ReturnType<typeof createRouter>) {
+  return mount(MapView, {
+    global: { plugins: [createPinia(), router], stubs: { SatisfactionScatter: true } },
+  })
+}
+
+async function clickChip(wrapper: ReturnType<typeof mountMap>, name: string) {
+  const chip = wrapper.findAll('button').find((button) => button.text() === name)
+  if (!chip) throw new Error(`${name} 필터 칩을 찾지 못했습니다.`)
+  await chip.trigger('click')
+  await flushPromises()
+}
+
+async function mapRouter(path = '/map') {
+  const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+  await router.push(path)
+  await router.isReady()
+  return router
+}
+
 beforeEach(() => {
   vi.mocked(getSatisfactionMap).mockRejectedValue(new Error('offline'))
+  vi.mocked(getBehavior).mockResolvedValue(behaviorDetail())
   vi.mocked(getGoals).mockResolvedValue([])
   vi.mocked(getMonthlyReport).mockRejectedValue(new Error('offline'))
   vi.mocked(getSuggestions).mockResolvedValue([])
@@ -33,62 +130,140 @@ beforeEach(() => {
 
 describe('만족도 지도 이동', () => {
   it('API 성공 시 정렬된 첫 행동을 선택하고 실제 축과 상세를 표시한다', async () => {
-    vi.mocked(getSatisfactionMap).mockResolvedValueOnce({
-      analysisYearMonth: '2026-09',
-      axisX: {
-        label: '실제 지출 부담',
-        formula: 'MONTHLY_TOTAL_OVER_BUDGET',
-        monthlyBudget: 1_000_000,
-      },
-      axisY: { label: '실제 만족도', range: [-1, 1] },
-      boundaries: { x: 0.1, y: 0 },
-      points: [
-        {
-          behaviorId: 42,
-          name: '실제 배달',
-          monthlyTotalAmount: 100_000,
-          avgAmount: 20_000,
-          txCount: 5,
-          burdenRatio: 0.1,
-          adjustedSatisfaction: -0.5,
-          retrospectCount: 3,
-          evaluationStatus: 'RESOLVED',
-          quadrant: 'PRIORITY',
-          verdict: 'ADJUST',
-          prescription: '실제 처방',
-          cta: null,
-        },
-      ],
-    })
-    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
-    await router.push('/map')
-    await router.isReady()
-    const wrapper = mount(MapView, {
-      global: { plugins: [createPinia(), router], stubs: { SatisfactionScatter: true } },
-    })
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    const wrapper = mountMap(await mapRouter())
     await flushPromises()
 
     expect(wrapper.text()).toContain('실제 지출 부담')
     expect(wrapper.text()).toContain('실제 배달(3)')
+    expect(wrapper.text()).toContain('실제 처방')
     expect(wrapper.text()).not.toContain('예시 데이터를')
   })
 
   it('카테고리 카드의 더 보기에서 선택한 카테고리 회고 내역으로 바로 이동한다', async () => {
-    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
-    await router.push('/map')
-    await router.isReady()
-
-    const wrapper = mount(MapView, {
-      global: {
-        plugins: [createPinia(), router],
-        stubs: { SatisfactionScatter: true },
-      },
-    })
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([mapPoint({ behaviorId: 7, name: '택시' })]),
+    )
+    const wrapper = mountMap(await mapRouter())
     await flushPromises()
 
     const reviewLink = wrapper.findAll('a').find((link) => link.text().includes('더 보기'))
     if (!reviewLink) throw new Error('더 보기 링크를 찾지 못했습니다.')
     expect(reviewLink.attributes('href')).toBe('/map/behaviors/7/reviews')
+  })
+
+  it('조회에 실패하면 목업 대신 오류 안내와 재시도 버튼만 보여 준다', async () => {
+    vi.mocked(getSatisfactionMap).mockRejectedValue(
+      new ApiError('INTERNAL_ERROR', 500, '서버 문구'),
+    )
+    const wrapper = mountMap(await mapRouter())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('만족도 지도를 불러오지 못했어요. 다시 시도해주세요.')
+    expect(wrapper.html()).not.toContain('satisfaction-scatter')
+    expect(wrapper.text()).not.toContain('실제 지출 부담')
+    expect(wrapper.text()).not.toContain('여행')
+    expect(wrapper.text()).not.toContain('심야 배달')
+
+    const callsBeforeRetry = vi.mocked(getSatisfactionMap).mock.calls.length
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    const retry = wrapper.findAll('button').find((button) => button.text() === '다시 시도')
+    if (!retry) throw new Error('다시 시도 버튼을 찾지 못했습니다.')
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(getSatisfactionMap).toHaveBeenCalledTimes(callsBeforeRetry + 1)
+    expect(wrapper.text()).toContain('실제 배달(3)')
+    expect(wrapper.text()).not.toContain('만족도 지도를 불러오지 못했어요')
+  })
+
+  it('점이 0개면 실패가 아니라 빈 상태 안내를 보여 준다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([]))
+    const wrapper = mountMap(await mapRouter())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('아직 지도에 그릴 회고가 없어요.')
+    expect(wrapper.text()).not.toContain('만족도 지도를 불러오지 못했어요')
+    expect(wrapper.text()).not.toContain('다시 시도')
+    expect(wrapper.html()).not.toContain('satisfaction-scatter')
+  })
+
+  it('거래 하위 화면은 GET /behaviors/{id} 응답의 거래를 그린다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    vi.mocked(getBehavior).mockResolvedValue(
+      behaviorDetail({
+        transactions: [
+          {
+            id: 1043,
+            occurredAt: '2026-08-24T23:30:00+09:00',
+            merchant: '배달의민족',
+            amount: 12_000,
+            category: '배달',
+            timeSlot: 'NIGHT',
+            behaviorId: 42,
+          },
+          {
+            id: 1044,
+            occurredAt: '2026-08-21T22:10:00+09:00',
+            merchant: '쿠팡이츠',
+            amount: 18_000,
+            category: '배달',
+            timeSlot: 'NIGHT',
+            behaviorId: 42,
+          },
+        ],
+      }),
+    )
+    const wrapper = mountMap(await mapRouter('/map/behaviors/42'))
+    await flushPromises()
+
+    const openTransactions = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '거래 내역 보기')
+    if (!openTransactions) throw new Error('거래 내역 보기 버튼을 찾지 못했습니다.')
+    await openTransactions.trigger('click')
+    await flushPromises()
+
+    expect(getBehavior).toHaveBeenCalledWith(42)
+    expect(wrapper.text()).toContain('배달의민족')
+    expect(wrapper.text()).toContain('쿠팡이츠')
+    expect(wrapper.text()).toContain('(총 2건)')
+    expect(wrapper.text()).toContain('총 30,000원')
+    // 응답에 없는 값은 만들지 않는다 — 5점 척도 배지도 목업 가맹점도 없다.
+    expect(wrapper.text()).not.toContain('/5')
+    expect(wrapper.text()).not.toContain('요기요')
+    expect(wrapper.text()).not.toContain('교촌치킨')
+  })
+
+  it('같은 점으로 되돌아와도 늦게 끝난 이전 요청이 최신 거래를 덮지 않는다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([mapPoint(), mapPoint({ behaviorId: 7, name: '택시', burdenRatio: 0.05 })]),
+    )
+    const pending: ((detail: BehaviorDetail) => void)[] = []
+    vi.mocked(getBehavior).mockImplementation(
+      () => new Promise<BehaviorDetail>((resolve) => pending.push(resolve)),
+    )
+
+    const wrapper = mountMap(await mapRouter())
+    await flushPromises()
+    // 마운트가 정렬 첫 점(실제 배달)을 고르며 첫 요청을 낸다. 이어서 택시 → 실제 배달로 되돌아간다.
+    expect(pending).toHaveLength(1)
+    await clickChip(wrapper, '택시')
+    await clickChip(wrapper, '실제 배달')
+    expect(pending).toHaveLength(3)
+
+    pending[2]?.(behaviorDetail({ transactions: [transaction(1, '최신 응답 가맹점')] }))
+    await flushPromises()
+    expect(wrapper.text()).toContain('최신 응답 가맹점')
+
+    // 같은 점(실제 배달)으로 나갔던 첫 요청이라 selectedId 비교로는 걸러지지 않는다.
+    pending[0]?.(behaviorDetail({ transactions: [transaction(2, '늦게 끝난 첫 요청')] }))
+    pending[1]?.(behaviorDetail({ transactions: [transaction(3, '늦게 끝난 다른 점')] }))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('최신 응답 가맹점')
+    expect(wrapper.text()).not.toContain('늦게 끝난 첫 요청')
+    expect(wrapper.text()).not.toContain('늦게 끝난 다른 점')
   })
 
   it('홈 행동 변화 카드는 behaviorId path param으로 상세 화면을 연다', async () => {
