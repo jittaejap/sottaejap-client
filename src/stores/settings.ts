@@ -10,7 +10,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const goalName = ref('여행 자금')
   const goalAmount = ref(1_000_000)
   const sensitivity = ref<AnalysisSensitivity | null>('BALANCED')
-  const outlierBaseAmount = ref(1_000_000)
+  const outlierBaseAmount = ref(100_000)
 
   function updateBudget(value: number) {
     monthlyBudget.value = value

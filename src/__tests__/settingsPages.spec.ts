@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
+import { updateSettings } from '@/api/service'
 import { routes } from '@/router'
 import { useSettingsStore } from '@/stores/settings'
 import AnalysisSettingsView from '@/views/AnalysisSettingsView.vue'
@@ -91,7 +92,7 @@ describe('마이페이지 설정 화면', () => {
     const wrapper = mount(AnalysisSettingsView, { global: { plugins: [pinia, router] } })
     const input = wrapper.get('input[inputmode="numeric"]')
 
-    expect((input.element as HTMLInputElement).value).toBe('')
+    expect((input.element as HTMLInputElement).value).toBe('100,000')
     const saveButton = wrapper.findAll('button').find((item) => item.text().includes('저장하기'))
     expect(saveButton?.attributes('disabled')).toBeUndefined()
 
@@ -101,5 +102,6 @@ describe('마이페이지 설정 화면', () => {
     const store = useSettingsStore(pinia)
     expect(store.sensitivity).toBeNull()
     expect(store.outlierBaseAmount).toBe(1_500_000)
+    expect(updateSettings).toHaveBeenLastCalledWith({ outlierThreshold: 1_500_000 })
   })
 })

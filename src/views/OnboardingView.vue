@@ -102,7 +102,9 @@ function removeUpload() {
   if (onboardingFileInput.value) onboardingFileInput.value.value = ''
 }
 const monthlyBudget = ref(2_500_000)
-const sensitivity = ref<'RELAXED' | 'BALANCED' | 'DETAILED'>('BALANCED')
+type AnalysisSensitivity = 'RELAXED' | 'BALANCED' | 'DETAILED'
+const sensitivity = ref<AnalysisSensitivity | null>('BALANCED')
+const outlierThreshold = ref(100_000)
 
 type ReviewStage = 'satisfaction' | 'purpose' | 'companion' | 'repeat' | 'complete'
 type ReviewAnswer = {
@@ -357,6 +359,7 @@ const sensitivityOptions = [
     title: '여유 있게',
     desc: '정말 큰 지출만 알려드려요',
     amount: '15만원 이상',
+    threshold: 150_000,
     icon: IconChartBar,
   },
   {
@@ -364,6 +367,7 @@ const sensitivityOptions = [
     title: '균형 있게',
     desc: '평소와 다른 지출을 알려드려요',
     amount: '10만원 이상',
+    threshold: 100_000,
     icon: IconBell,
   },
   {
@@ -371,12 +375,24 @@ const sensitivityOptions = [
     title: '꼼꼼하게',
     desc: '작은 변화도 알려드려요',
     amount: '5만원 이상',
+    threshold: 50_000,
     icon: IconSearch,
   },
 ] as const
+
+function selectSensitivity(option: (typeof sensitivityOptions)[number]) {
+  sensitivity.value = option.value
+  outlierThreshold.value = option.threshold
+}
+
+function setCustomThreshold(value: number) {
+  outlierThreshold.value = value
+  sensitivity.value = null
+}
 const canProceed = computed(() => {
   if (step.value === 3) return uploadedFile.value !== null
   if (step.value === 1 && goalType.value === 'CUSTOM' && goalName.value.trim() === '') return false
+  if (step.value === 2) return monthlyBudget.value > 0 && outlierThreshold.value > 0
   return goalAmount.value > 0
 })
 
@@ -406,12 +422,12 @@ async function next() {
       })
       savedSteps.add(1)
     } else if (step.value === 2 && !savedSteps.has(2)) {
-      const thresholds = { RELAXED: 3, BALANCED: 2, DETAILED: 1.5 }
-      await updateSettings({
+      const me = await updateSettings({
         monthlyBudget: monthlyBudget.value,
-        outlierThreshold: thresholds[sensitivity.value],
+        outlierThreshold: outlierThreshold.value,
         retrospectDelayDays: 1,
       })
+      userStore.replaceMe(me)
       savedSteps.add(2)
     } else if (step.value === 3 && !savedSteps.has(3)) {
       if (!selectedFile.value) return
@@ -617,7 +633,7 @@ async function next() {
               type="button"
               class="relative flex h-[119px] flex-col items-center rounded-xl border px-2 py-3 text-center"
               :class="sensitivity === option.value ? 'border-2 border-brand' : 'border-line'"
-              @click="sensitivity = option.value"
+              @click="selectSensitivity(option)"
             >
               <span
                 v-if="sensitivity === option.value"
@@ -634,6 +650,24 @@ async function next() {
                 :class="sensitivity === option.value ? 'bg-brand-soft text-brand' : ''"
                 >{{ option.amount }}</span
               >
+            </button>
+          </div>
+        </div>
+        <div class="space-y-2.5">
+          <label class="text-ink text-[13px] font-bold">기준 금액 직접 설정</label>
+          <MoneyInput
+            :model-value="outlierThreshold"
+            @update:model-value="setCustomThreshold"
+          />
+          <div class="flex gap-2">
+            <button
+              v-for="amount in [50_000, 100_000, 500_000, 1_000_000]"
+              :key="amount"
+              type="button"
+              class="border-line text-ink-muted flex-1 rounded-full border py-2 text-xs font-medium"
+              @click="setCustomThreshold(outlierThreshold + amount)"
+            >
+              +{{ amount / 10_000 }}만원
             </button>
           </div>
         </div>
