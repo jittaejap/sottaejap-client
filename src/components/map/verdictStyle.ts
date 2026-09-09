@@ -1,3 +1,4 @@
+import type { Verdict } from '@/api/enums'
 import type { SatisfactionMapPoint } from '@/api/types'
 
 /**
@@ -10,6 +11,15 @@ export type VerdictTone = 'sustain' | 'adjust' | 'pending'
 export function verdictTone(point: SatisfactionMapPoint): VerdictTone {
   if (point.evaluationStatus === 'PENDING') return 'pending'
   return point.verdict === 'SUSTAIN' ? 'sustain' : 'adjust'
+}
+
+/**
+ * 점이 없는 자리에서 판정만으로 층위를 정한다 — 소비 분석의 판정 라벨별·카테고리별 요약이 쓴다.
+ * `verdict`가 `null`이면 그 카테고리는 전부 보류다 (05 §2 `GET /analysis`).
+ */
+export function verdictToneOf(verdict: Verdict | null): VerdictTone {
+  if (verdict === null) return 'pending'
+  return verdict === 'SUSTAIN' ? 'sustain' : 'adjust'
 }
 
 /** echarts는 색을 문자열로 받으므로 토큰 이름을 넘겨 런타임에 읽게 한다. */
