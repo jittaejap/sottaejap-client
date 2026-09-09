@@ -55,6 +55,7 @@ import {
   askFinance,
   getAnalysis,
   getGoals,
+  getRetrospectCandidates,
   getSuggestions,
   rejectSuggestionById,
 } from '@/api/service'
@@ -109,67 +110,39 @@ watch(
   { deep: true },
 )
 
-const candidates = [
-  {
-    id: 1,
-    merchant: '배달의민족',
-    amount: 23_000,
-    category: '식비 · 배달',
-    when: '금요일 23:12',
-    night: true,
-  },
-  {
-    id: 2,
-    merchant: '요기요',
-    amount: 19_500,
-    category: '식비 · 배달',
-    when: '금요일 21:03',
-    night: false,
-  },
-  {
-    id: 3,
-    merchant: '스타벅스',
-    amount: 6_200,
-    category: '식비 · 카페',
-    when: '금요일 16:45',
-    night: false,
-  },
-  {
-    id: 4,
-    merchant: 'GS25',
-    amount: 4_500,
-    category: '식비 · 편의점',
-    when: '목요일 23:19',
-    night: true,
-  },
-  {
-    id: 5,
-    merchant: '교촌치킨',
-    amount: 21_000,
-    category: '식비 · 배달',
-    when: '목요일 21:55',
-    night: false,
-  },
-  {
-    id: 6,
-    merchant: 'CU',
-    amount: 3_200,
-    category: '식비 · 편의점',
-    when: '목요일 20:10',
-    night: false,
-  },
-]
+/** 채팅 회고 진입은 오늘 포함 최근 3일이다 — 05 §2 `rules.chat-window-days` = 3 (01 E-48). 기준 시간대는 KST다. */
+const CHAT_WINDOW_DAYS = 3
+/** 3일 창의 후보를 한 번에 받는다. 05 §2 `limit` 상한은 100이다. */
+const CANDIDATE_LIMIT = 20
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000
 
-const selected = ref(candidates[0]!)
+/** 브라우저 시간대와 무관하게 KST 달력 날짜(`YYYY-MM-DD`)를 얻는다. */
+function kstDateIso(daysAgo: number) {
+  const shifted = new Date(Date.now() + KST_OFFSET_MS - daysAgo * 24 * 60 * 60 * 1000)
+  return shifted.toISOString().slice(0, 10)
+}
+
+/**
+ * 서버 시각은 ISO 8601 오프셋 문자열이다 (AGENTS.md).
+ * 숫자 배열처럼 다른 모양으로 오면 서버 버그이므로 파싱으로 덮지 않고 받은 값을 그대로 보여 준다.
+ */
+function formatOccurredAt(occurredAt: string) {
+  const parsed = new Date(occurredAt)
+  if (Number.isNaN(parsed.getTime())) return String(occurredAt)
+  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed)
+}
+
+const candidates = computed(() => chatStore.candidates)
+const selected = computed(() => chatStore.selectedCandidate)
 const search = ref('')
 const nightOnly = ref(false)
-const pickedId = ref(candidates[0]!.id)
+const pickedId = ref<number | null>(null)
 
 const filtered = computed(() =>
-  candidates.filter((c) => {
+  candidates.value.filter((c) => {
     const matchesText =
       search.value === '' || c.merchant.includes(search.value) || c.category.includes(search.value)
-    return matchesText && (!nightOnly.value || c.night)
+    return matchesText && (!nightOnly.value || c.timeSlot === 'NIGHT')
   }),
 )
 
@@ -316,10 +289,33 @@ const behaviorSummary = computed(() => {
     }
   })
 })
-function startRetrospect() {
+async function startRetrospect() {
   chatStore.activate('retrospect')
-  if (chatStore.steps.retrospect !== 'menu') return
+  if (chatStore.steps.retrospect !== 'menu' || requestPending.value) return
   say('user', '회고를 등록하고 싶어요!')
+  requestPending.value = true
+  try {
+    chatStore.candidates = await getRetrospectCandidates(CANDIDATE_LIMIT, {
+      from: kstDateIso(CHAT_WINDOW_DAYS - 1),
+      to: kstDateIso(0),
+    })
+  } catch (error) {
+    say(
+      'ai',
+      await apiErrorMessage(error, '회고 후보를 불러오지 못했어요. 잠시 후 다시 시도해주세요.'),
+    )
+    return
+  } finally {
+    requestPending.value = false
+  }
+  const first = chatStore.candidates[0]
+  // 후보가 없으면 03 S10 빈 상태다. 후보 제외는 저장하지 않는다 (01 E-49).
+  if (!first) {
+    step.value = 'empty'
+    return
+  }
+  chatStore.selectedCandidate = first
+  pickedId.value = first.transactionId
   step.value = 'candidate'
 }
 
@@ -375,7 +371,7 @@ function startQna() {
 }
 
 async function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
-  if (key === 'retrospect') startRetrospect()
+  if (key === 'retrospect') await startRetrospect()
   else if (key === 'analysis') await startAnalysis()
   else startQna()
 }
@@ -428,18 +424,19 @@ function openPicker() {
 }
 
 function confirmPick() {
-  selected.value = candidates.find((c) => c.id === pickedId.value)!
+  const picked = candidates.value.find((c) => c.transactionId === pickedId.value)
+  if (!picked) return
+  chatStore.selectedCandidate = picked
   startQa()
 }
 
 function startQa() {
-  say(
-    'user',
-    `${selected.value.merchant} ${selected.value.amount.toLocaleString('ko-KR')}원 회고할게요`,
-  )
+  const candidate = chatStore.selectedCandidate
+  if (!candidate) return
+  say('user', `${candidate.merchant} ${candidate.amount.toLocaleString('ko-KR')}원 회고할게요`)
   say(
     'ai',
-    `좋아요! ${selected.value.merchant} ${selected.value.amount.toLocaleString('ko-KR')}원에 대해 함께 돌아볼까요? 😊`,
+    `좋아요! ${candidate.merchant} ${candidate.amount.toLocaleString('ko-KR')}원에 대해 함께 돌아볼까요? 😊`,
     cheerAvatar,
   )
   step.value = 'qaSatisfaction'
@@ -681,7 +678,7 @@ async function apiErrorMessage(error: unknown, fallback: string) {
           </button>
         </div>
       </template>
-      <template v-else-if="step === 'candidate'">
+      <template v-else-if="step === 'candidate' && selected">
         <ChatBubble
           role="ai"
           :avatar="activeAvatar"
@@ -700,11 +697,12 @@ async function apiErrorMessage(error: unknown, fallback: string) {
               <p class="text-ink text-lg font-bold">
                 {{ selected.amount.toLocaleString('ko-KR') }}원
               </p>
-              <p class="text-ink-muted text-xs">{{ selected.when }}</p>
+              <p class="text-ink-muted text-xs">{{ formatOccurredAt(selected.occurredAt) }}</p>
             </div>
           </div>
           <div class="mt-3 flex gap-2">
             <span
+              v-if="selected.timeSlot === 'NIGHT'"
               class="text-brand bg-brand/10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
             >
               <IconMoonStars :size="13" /> 심야
@@ -712,7 +710,7 @@ async function apiErrorMessage(error: unknown, fallback: string) {
             <span
               class="text-brand bg-brand/10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
             >
-              <IconRepeat :size="13" /> 반복
+              {{ selected.category }}
             </span>
           </div>
         </div>
@@ -725,29 +723,13 @@ async function apiErrorMessage(error: unknown, fallback: string) {
             />
             이 거래를 회고 후보로 선정한 이유
           </p>
-          <ul class="text-ink-muted mt-2 space-y-1.5 text-sm">
-            <li class="flex gap-2">
-              <IconCheck
-                :size="15"
-                class="text-brand mt-0.5 shrink-0"
-              />
-              최근 30일 동안 심야 시간대 식비 지출이 반복되었어요.
-            </li>
-            <li class="flex gap-2">
-              <IconCheck
-                :size="15"
-                class="text-brand mt-0.5 shrink-0"
-              />
-              비슷한 금액의 배달 주문이 자주 있었어요.
-            </li>
-            <li class="flex gap-2">
-              <IconCheck
-                :size="15"
-                class="text-brand mt-0.5 shrink-0"
-              />
-              지출 패턴을 점검하면 더 나은 소비 습관을 만들 수 있어요.
-            </li>
-          </ul>
+          <p class="text-ink-muted mt-2 flex gap-2 text-sm">
+            <IconCheck
+              :size="15"
+              class="text-brand mt-0.5 shrink-0"
+            />
+            {{ selected.reason }}
+          </p>
         </div>
 
         <div class="space-y-2">
@@ -761,6 +743,34 @@ async function apiErrorMessage(error: unknown, fallback: string) {
             @click="openPicker"
             >이번 거래는 제외</PrimaryButton
           >
+        </div>
+      </template>
+
+      <template v-else-if="step === 'empty'">
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+        >
+          <p class="font-semibold">지금은 돌아볼 거래가 없어요 🌱</p>
+          <p class="mt-1">최근 3일 안에는 회고 조건을 채운 거래가 없었어요.</p>
+        </ChatBubble>
+
+        <div class="border-line bg-surface rounded-2xl border p-4">
+          <p class="text-ink flex items-center gap-1.5 text-[13px] font-bold">
+            <IconClock
+              :size="16"
+              class="text-brand"
+            />
+            어떤 거래가 후보가 되나요?
+          </p>
+          <ul class="text-ink-muted mt-2 space-y-1.5 text-sm">
+            <li>· 결제한 지 하루가 지난 거래예요.</li>
+            <li>· 시간대 평균을 크게 넘거나, 설정한 임계값을 넘은 지출이에요.</li>
+            <li>· 같은 묶음에서 만족도가 낮게 반복된 소비예요.</li>
+          </ul>
+          <p class="text-ink-faint mt-3 text-xs leading-[1.4]">
+            새 거래내역을 올리거나 하루 뒤에 다시 확인해 주세요.
+          </p>
         </div>
       </template>
 
@@ -803,10 +813,10 @@ async function apiErrorMessage(error: unknown, fallback: string) {
           <div class="divide-line divide-y">
             <button
               v-for="c in filtered"
-              :key="c.id"
+              :key="c.transactionId"
               type="button"
               class="flex w-full items-center gap-3 py-2.5"
-              @click="pickedId = c.id"
+              @click="pickedId = c.transactionId"
             >
               <MerchantBadge
                 :name="c.merchant"
@@ -820,14 +830,20 @@ async function apiErrorMessage(error: unknown, fallback: string) {
                 <span class="text-ink block text-sm font-bold"
                   >{{ c.amount.toLocaleString('ko-KR') }}원</span
                 >
-                <span class="text-ink-muted block text-xs">{{ c.when }}</span>
+                <span class="text-ink-muted block text-xs">{{
+                  formatOccurredAt(c.occurredAt)
+                }}</span>
               </span>
               <span
                 class="flex size-5 shrink-0 items-center justify-center rounded-full border"
-                :class="pickedId === c.id ? 'border-brand bg-brand text-surface' : 'border-line'"
+                :class="
+                  pickedId === c.transactionId
+                    ? 'border-brand bg-brand text-surface'
+                    : 'border-line'
+                "
               >
                 <IconCheck
-                  v-if="pickedId === c.id"
+                  v-if="pickedId === c.transactionId"
                   :size="12"
                   :stroke-width="3"
                 />
