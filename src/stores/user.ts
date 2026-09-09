@@ -51,6 +51,12 @@ export const useUserStore = defineStore('user', () => {
   const onboardingCompleted = computed(() => me.value?.onboardingCompleted ?? false)
 
   /**
+   * 복원이 `GET /users/me` 응답을 기다리는 동안 true. `App.vue`가 이 값 하나로 스플래시를
+   * 그린다 (#34). 저장된 토큰이 없으면 한 번도 true가 되지 않아 1L 로그인이 바로 뜬다.
+   */
+  const restoring = ref(false)
+
+  /**
    * 로그인 성공 직후 호출한다. 토큰을 먼저 세워야 `GET /users/me`에 Authorization이 실린다.
    * 사용자 조회가 실패하면 토큰만 남은 반쪽 상태가 되므로 토큰까지 되돌린다.
    */
@@ -76,18 +82,23 @@ export const useUserStore = defineStore('user', () => {
    * 여러 내비게이션이 동시에 기다려도 조회는 한 번만 하도록 첫 호출의 약속을 돌려준다.
    * 그 약속이 거부되면 캐시된 채로 모든 내비게이션이 막히므로, 이 함수는 절대 reject하지 않는다.
    */
-  let restoring: Promise<void> | null = null
+  let restorePromise: Promise<void> | null = null
   function restore() {
-    restoring ??= (async () => {
+    // `restoring`은 첫 `await` 전에 세워지므로 호출한 쪽은 같은 tick에서 값을 볼 수 있다.
+    // 저장된 토큰이 없으면 세우지 않는다 — 스플래시가 한 프레임도 깜빡이면 안 된다.
+    restorePromise ??= (async () => {
       const token = readStoredToken()
       if (token === null) return
+      restoring.value = true
       try {
         await signIn(token)
       } catch {
         // 저장된 토큰이 더는 유효하지 않다. 1L 로그인부터 다시 시작한다.
+      } finally {
+        restoring.value = false
       }
     })()
-    return restoring
+    return restorePromise
   }
 
   /**
@@ -117,6 +128,7 @@ export const useUserStore = defineStore('user', () => {
     me,
     signedIn,
     onboardingCompleted,
+    restoring,
     signIn,
     restore,
     markOnboardingCompleted,
