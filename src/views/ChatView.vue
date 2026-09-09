@@ -112,6 +112,19 @@ function say(role: 'ai' | 'user', text: string, avatar?: string) {
   })
 }
 
+/**
+ * `say`와 `step`은 **부를 때의** 활성 채널에 쓴다.
+ * 서버를 기다리는 사이 사용자가 다른 채널로 옮기면 회고 응답이 그 채널에 꽂히므로,
+ * `await`를 건넌 뒤의 회고 발화와 단계는 이 두 함수로 회고 채널에 못 박는다.
+ */
+function sayRetrospect(text: string, avatar?: string) {
+  chatStore.addMessage('retrospect', { role: 'ai', text, avatar })
+}
+
+function setRetrospectStep(next: ChatStep) {
+  chatStore.steps.retrospect = next
+}
+
 watch(
   [history, step],
   () => {
@@ -383,8 +396,7 @@ async function startRetrospect() {
       to: kstDateIso(0),
     })
   } catch (error) {
-    say(
-      'ai',
+    sayRetrospect(
       await apiErrorMessage(error, '회고 후보를 불러오지 못했어요. 잠시 후 다시 시도해주세요.'),
     )
     return
@@ -394,12 +406,12 @@ async function startRetrospect() {
   const first = chatStore.candidates[0]
   // 후보가 없으면 03 S10 빈 상태다. 후보 제외는 저장하지 않는다 (01 E-49).
   if (!first) {
-    step.value = 'empty'
+    setRetrospectStep('empty')
     return
   }
   chatStore.selectedCandidate = first
   pickedId.value = first.transactionId
-  step.value = 'candidate'
+  setRetrospectStep('candidate')
 }
 
 async function loadImprovement() {
@@ -526,29 +538,28 @@ async function onSend(text: string) {
 function applyChatResult(result: RetrospectChatResult, avatar?: string) {
   chatStore.templateMode = result.fallback
   chatStore.suggestedReflection = result.reflection
-  say('ai', result.reply, avatar)
-  step.value = CHAT_STEP_BY_REFLECTION_STEP[result.step]
+  sayRetrospect(result.reply, avatar)
+  setRetrospectStep(CHAT_STEP_BY_REFLECTION_STEP[result.step])
 }
 
 async function handleRetrospectChatError(error: unknown) {
   if (error instanceof ApiError && error.code === 'LLM_UNAVAILABLE') {
     // 503이면 템플릿 배너를 띄우고 P0 선택지 버튼으로 그대로 이어간다 (03 S11 · FR-04-15).
     chatStore.templateMode = true
-    say('ai', '지금은 AI 연결이 원활하지 않아 기본 질문으로 이어갈게요.', thinkingAvatar)
+    sayRetrospect('지금은 AI 연결이 원활하지 않아 기본 질문으로 이어갈게요.', thinkingAvatar)
     return
   }
   if (error instanceof ApiError && error.code === 'DUPLICATE_RETROSPECT') {
-    say('ai', '이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
+    sayRetrospect('이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
     backToCandidates()
     return
   }
   if (error instanceof ApiError && error.code === 'NOT_FOUND') {
-    say('ai', '그 거래를 찾지 못했어요. 다른 거래를 골라 주세요.', searchAvatar)
+    sayRetrospect('그 거래를 찾지 못했어요. 다른 거래를 골라 주세요.', searchAvatar)
     backToCandidates()
     return
   }
-  say(
-    'ai',
+  sayRetrospect(
     await apiErrorMessage(error, '회고 대화를 이어가지 못했어요. 잠시 후 다시 시도해주세요.'),
   )
 }
@@ -556,7 +567,7 @@ async function handleRetrospectChatError(error: unknown) {
 function backToCandidates() {
   chatStore.selectedCandidate = null
   chatStore.resetReflection()
-  step.value = chatStore.candidates.length > 0 ? 'pick' : 'empty'
+  setRetrospectStep(chatStore.candidates.length > 0 ? 'pick' : 'empty')
 }
 
 function acceptCandidate() {
@@ -666,11 +677,11 @@ async function finishRetrospect() {
     })
   } catch (error) {
     if (error instanceof ApiError && error.code === 'DUPLICATE_RETROSPECT') {
-      say('ai', '이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
+      sayRetrospect('이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
       backToCandidates()
       return
     }
-    say('ai', await apiErrorMessage(error, '회고를 저장하지 못했어요. 다시 시도해주세요.'))
+    sayRetrospect(await apiErrorMessage(error, '회고를 저장하지 못했어요. 다시 시도해주세요.'))
     return
   } finally {
     requestPending.value = false
@@ -681,7 +692,10 @@ async function finishRetrospect() {
     (c) => c.transactionId !== candidate.transactionId,
   )
   reasonExpanded.value = false
-  say('ai', '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.', happyAvatar)
+  sayRetrospect(
+    '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.',
+    happyAvatar,
+  )
   // 저장이 끝난 거래를 계속 붙들지 않는다 — 회고 채널로 돌아오면 후보 선택부터다.
   backToCandidates()
   chatStore.activate('analysis')

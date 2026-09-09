@@ -603,6 +603,42 @@ describe('회고 대화 턴 (05 §2 POST /retrospects/chat)', () => {
     expect(contents).toContain('이 소비는 어땠나요?')
   })
 
+  it('요청이 떠 있는 동안 채널을 바꿔도 회고 응답은 회고 채널에 남는다', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '회고 등록')
+    await click(wrapper, '회고해볼게요')
+
+    // 자유 입력 응답을 손으로 붙잡아 둔다
+    let resolveChat!: (value: RetrospectChatResult) => void
+    vi.mocked(chatRetrospect).mockImplementationOnce(
+      () => new Promise<RetrospectChatResult>((resolve) => (resolveChat = resolve)),
+    )
+    await type(wrapper, '충동적이었어요')
+
+    // 응답을 기다리는 사이 사용자가 소비 분석으로 옮긴다
+    await click(wrapper, '소비 분석')
+
+    resolveChat({
+      reply: '충동 소비로 보이는데, 맞을까요?',
+      step: 'PURPOSE',
+      reflection: { satisfaction: 'LOW', purpose: '충동', companion: null, repeatIntent: null },
+      needsClarification: true,
+      uncertainFields: [],
+      fallback: false,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await wrapper.vm.$nextTick()
+
+    // 소비 분석 채널이 회고 답변과 회고 칩을 떠안으면 안 된다
+    expect(wrapper.text()).not.toContain('충동 소비로 보이는데')
+    expect(wrapper.text()).not.toContain('이 소비의 목적은 무엇이었나요?')
+
+    // 회고 채널로 돌아오면 그대로 있다
+    await click(wrapper, '회고 등록')
+    expect(wrapper.text()).toContain('충동 소비로 보이는데')
+  })
+
   it('409 DUPLICATE_RETROSPECT는 안내하고 후보 목록으로 돌아간다', async () => {
     const { wrapper } = await mountChat()
 
