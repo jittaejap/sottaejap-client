@@ -35,8 +35,7 @@ function formatDisplay(value: string) {
   return value.replace(/-/g, '.')
 }
 
-const today = startOfDay()
-const initialDate = parseIso(props.modelValue) ?? today
+const initialDate = parseIso(props.modelValue) ?? startOfDay()
 const displayedMonth = ref(new Date(initialDate.getFullYear(), initialDate.getMonth(), 1))
 const open = ref(false)
 const draft = ref(formatDisplay(props.modelValue))
@@ -85,11 +84,11 @@ function dateFor(day: number) {
 }
 
 function isDisabled(day: number) {
-  return dateFor(day) <= today
+  return dateFor(day) <= startOfDay()
 }
 
 function isToday(day: number) {
-  return dateFor(day).getTime() === today.getTime()
+  return dateFor(day).getTime() === startOfDay().getTime()
 }
 
 function isSelected(day: number) {
@@ -104,15 +103,24 @@ function selectDay(day: number) {
 
 function onInput(event: Event) {
   const input = event.target as HTMLInputElement
+  const caret = input.selectionStart ?? input.value.length
+  const digitsBeforeCaret = input.value.slice(0, caret).replace(/\D/g, '').length
   const digits = input.value.replace(/\D/g, '').slice(0, 8)
   const parts = [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean)
   draft.value = parts.join('.')
   input.value = draft.value
+  let nextCaret = 0
+  let seenDigits = 0
+  while (nextCaret < draft.value.length && seenDigits < digitsBeforeCaret) {
+    if (/\d/.test(draft.value[nextCaret] ?? '')) seenDigits += 1
+    nextCaret += 1
+  }
+  input.setSelectionRange(nextCaret, nextCaret)
   error.value = ''
 
   if (digits.length !== 8) return
   const candidate = parseIso(`${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`)
-  if (!candidate || candidate <= today) {
+  if (!candidate || candidate <= startOfDay()) {
     error.value = '오늘 이후 날짜를 입력해 주세요.'
     return
   }

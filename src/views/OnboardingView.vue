@@ -41,25 +41,10 @@ import {
 import type { CompanionTag, PurposeTag, Satisfaction } from '@/api/enums'
 import { apiErrorMessage } from '@/api/errorMessage'
 import { useUserStore } from '@/stores/user'
+import { addCalendarMonths, toDateIso } from '@/utils/date'
 
 const router = useRouter()
 const userStore = useUserStore()
-
-function toDateIso(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function addCalendarMonths(value: string, months: number) {
-  const [year = 0, month = 1, day = 1] = value.split('-').map(Number)
-  const targetMonth = new Date(year, month - 1 + months, 1)
-  const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate()
-  return toDateIso(
-    new Date(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(day, lastDay)),
-  )
-}
 
 function initialGoalDueDate() {
   return addCalendarMonths(toDateIso(new Date()), 1)
@@ -71,6 +56,7 @@ const goalType = ref('TRAVEL')
 const goalName = ref('')
 const goalAmount = ref(3_000_000)
 const goalDueDate = ref(initialGoalDueDate())
+const goalDueDay = ref(Number(goalDueDate.value.slice(-2)))
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -204,13 +190,25 @@ const reviewStage = ref<ReviewStage>('satisfaction')
 const reviewRecords = ref<ReviewRecord[]>([])
 const reviewMessages = ref<ReviewMessage[]>([])
 const reviewAnswers = ref<ReviewAnswer>({})
-const reviewThread = useTemplateRef<HTMLElement>('reviewThread')
+const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer')
+
+function updateGoalDueDate(value: string) {
+  goalDueDate.value = value
+  goalDueDay.value = Number(value.slice(-2))
+}
+
+function addGoalMonths(months: number) {
+  goalDueDate.value = addCalendarMonths(goalDueDate.value, months, goalDueDay.value)
+}
 
 function scrollCalendarIntoView(isOpen: boolean) {
   if (!isOpen) return
   void nextTick(() => {
-    if (reviewThread.value) {
-      reviewThread.value.scrollTo({ top: reviewThread.value.scrollHeight, behavior: 'smooth' })
+    if (scrollContainer.value) {
+      scrollContainer.value.scrollTo({
+        top: scrollContainer.value.scrollHeight,
+        behavior: 'smooth',
+      })
     }
   })
 }
@@ -335,7 +333,8 @@ watch(
   [reviewMessages, reviewStage],
   () => {
     void nextTick(() => {
-      if (reviewThread.value) reviewThread.value.scrollTop = reviewThread.value.scrollHeight
+      if (scrollContainer.value)
+        scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
     })
   },
   { deep: true },
@@ -373,7 +372,7 @@ const sensitivityOptions = [
 const canProceed = computed(() => {
   if (step.value === 3) return uploadedFile.value !== null
   if (step.value === 1 && goalType.value === 'CUSTOM' && goalName.value.trim() === '') return false
-  return goalAmount.value > 0 && goalDueDate.value !== ''
+  return goalAmount.value > 0
 })
 
 function onGoalNameInput(event: Event) {
@@ -473,7 +472,7 @@ async function next() {
     </header>
 
     <main
-      ref="reviewThread"
+      ref="scrollContainer"
       class="min-h-0 flex-1 overflow-y-auto px-6 pt-5"
     >
       <section
@@ -553,7 +552,8 @@ async function next() {
         <div class="space-y-2">
           <label class="text-ink-muted text-[13px] font-bold">목표 달성 예정일</label>
           <GoalDatePicker
-            v-model="goalDueDate"
+            :model-value="goalDueDate"
+            @update:model-value="updateGoalDueDate"
             @open-change="scrollCalendarIntoView"
           />
           <div class="flex gap-2">
@@ -562,7 +562,7 @@ async function next() {
               :key="months"
               type="button"
               class="border-line text-ink-muted flex-1 rounded-full border py-2 text-xs font-medium"
-              @click="goalDueDate = addCalendarMonths(goalDueDate, months)"
+              @click="addGoalMonths(months)"
             >
               +{{ months }}개월
             </button>
