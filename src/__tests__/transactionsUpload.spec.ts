@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/api/service', () => ({
+  getTransactions: vi.fn().mockResolvedValue({
+    transactions: [],
+    page: 0,
+    size: 20,
+    totalElements: 0,
+    totalPages: 0,
+  }),
   uploadTransactions: vi.fn().mockResolvedValue({
     importedCount: 142,
     skippedCount: 1,
@@ -12,7 +19,7 @@ vi.mock('@/api/service', () => ({
 }))
 
 import { ApiError } from '@/api/apiError'
-import { uploadTransactions } from '@/api/service'
+import { getTransactions, uploadTransactions } from '@/api/service'
 import TransactionsView from '@/views/TransactionsView.vue'
 
 function mountTransactions() {
@@ -105,5 +112,43 @@ describe('거래내역 추가 업로드', () => {
       '거래내역을 업로드하지 못했어요. 파일을 확인하고 다시 시도해주세요.',
     )
     expect(wrapper.text()).not.toContain('서버 문구')
+  })
+})
+
+describe('거래내역 조회 API 배선', () => {
+  it('기본 요청은 0번 페이지·20건으로 조회한다', async () => {
+    const wrapper = mountTransactions()
+    await flushPromises()
+
+    expect(vi.mocked(getTransactions).mock.lastCall?.[0]).toMatchObject({ page: 0, size: 20 })
+    expect(wrapper.text()).toContain('총 0건')
+  })
+
+  it('기간과 회고 필터를 서버 쿼리로 전환한다', async () => {
+    vi.setSystemTime(new Date('2026-09-10T03:00:00.000Z'))
+    const wrapper = mountTransactions()
+    await flushPromises()
+
+    await wrapper.get('button[aria-label="기간 필터"]').trigger('click')
+    const sevenDays = wrapper
+      .findAll('[role="option"]')
+      .find((item) => item.text().trim() === '7일')
+    if (!sevenDays) throw new Error('7일 옵션을 찾지 못했다.')
+    await sevenDays.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(getTransactions).mock.lastCall?.[0]).toMatchObject({
+      from: '2026-09-04',
+      to: '2026-09-10',
+      page: 0,
+      size: 20,
+    })
+
+    await wrapper.get('button[aria-label="회고 필터"]').trigger('click')
+    const done = wrapper.findAll('[role="option"]').find((item) => item.text().trim() === '회고함')
+    if (!done) throw new Error('회고함 옵션을 찾지 못했다.')
+    await done.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(getTransactions).mock.lastCall?.[0]).toMatchObject({ hasRetrospect: true })
+    vi.useRealTimers()
   })
 })

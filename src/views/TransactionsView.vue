@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref, useTemplateRef } from 'vue'
+import { computed, inject, ref, useTemplateRef, watch } from 'vue'
 import { routeLocationKey } from 'vue-router'
 import {
   IconChevronRight,
@@ -7,80 +7,38 @@ import {
   IconMoodSad,
   IconMoodSmile,
   IconQuestionMark,
-  IconSearch,
   IconUpload,
   IconX,
 } from '@tabler/icons-vue'
 
-import type { CardIssuer, Satisfaction } from '@/api/enums'
+import type { Satisfaction } from '@/api/enums'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppFilterDropdown from '@/components/common/AppFilterDropdown.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
 import { apiErrorMessage } from '@/api/errorMessage'
-import { uploadTransactions } from '@/api/service'
-import type { TransactionUploadResult } from '@/api/types'
+import { getTransactions, uploadTransactions } from '@/api/service'
+import type { Transaction, TransactionPage, TransactionUploadResult } from '@/api/types'
 
 const route = inject(routeLocationKey, null)
 const tabs = ['거래내역', '추가 업로드', '회고 이력'] as const
 const tab = ref<(typeof tabs)[number]>('거래내역')
 
-const issuerLabels: Record<CardIssuer, string> = {
-  KB: 'KB국민카드',
-  HANA: '하나카드',
-  SHINHAN: '신한카드',
-}
-
-const transactions = [
-  {
-    merchant: '스타벅스 강남역점',
-    amount: 5_200,
-    category: '카페 · 간식',
-    at: '2025.05.20 12:45',
-    issuer: 'KB' as CardIssuer,
-    retrospected: true,
-  },
-  {
-    merchant: 'CU 역삼점',
-    amount: 3_800,
-    category: '편의점',
-    at: '2025.05.20 09:18',
-    issuer: 'KB' as CardIssuer,
-    retrospected: true,
-  },
-  {
-    merchant: 'SSG.COM',
-    amount: 129_000,
-    category: '쇼핑',
-    at: '2025.05.19 22:11',
-    issuer: 'SHINHAN' as CardIssuer,
-    retrospected: false,
-  },
-  {
-    merchant: '배달의민족',
-    amount: 18_500,
-    category: '식비 · 배달',
-    at: '2025.05.19 19:36',
-    issuer: 'HANA' as CardIssuer,
-    retrospected: true,
-  },
-  {
-    merchant: '이마트 역삼점',
-    amount: 45_600,
-    category: '마트 · 식료품',
-    at: '2025.05.19 17:02',
-    issuer: 'KB' as CardIssuer,
-    retrospected: false,
-  },
-]
-
-const search = ref('')
 const routeCategory = typeof route?.query.category === 'string' ? route.query.category : ''
-const category = ref(routeCategory === '심야 배달' ? '식비 · 배달' : routeCategory)
+const category = ref(routeCategory)
 const period = ref('ALL')
 const retrospect = ref('ALL')
-const sortOrder = ref('LATEST')
+const page = ref(0)
+const transactionsPage = ref<TransactionPage>({
+  transactions: [],
+  page: 0,
+  size: 20,
+  totalElements: 0,
+  totalPages: 0,
+})
+const loading = ref(false)
+const loadError = ref('')
 
 const periodOptions = [
   { value: 'ALL', label: '기간' },
@@ -89,69 +47,96 @@ const periodOptions = [
   { value: '1M', label: '1개월' },
   { value: '3M', label: '3개월' },
 ] as const
-const categoryOptions = [
-  { value: '', label: '카테고리' },
-  ...Array.from(new Set(transactions.map((transaction) => transaction.category))).map((value) => ({
-    value,
-    label: value,
-  })),
-]
 const retrospectOptions = [
   { value: 'ALL', label: '회고' },
   { value: 'DONE', label: '회고함' },
   { value: 'TODO', label: '미회고' },
 ] as const
-const sortOptions = [
-  { value: 'LATEST', label: '정렬' },
-  { value: 'LATEST_SELECTED', label: '최신순' },
-  { value: 'OLDEST', label: '오래된순' },
-] as const
-
-function transactionTime(at: string) {
-  return new Date(at.replace(/\./g, '-').replace(' ', 'T')).getTime()
-}
-
-const latestTransactionTime = Math.max(
-  ...transactions.map((transaction) => transactionTime(transaction.at)),
-)
-const periodDays: Record<string, number> = { '3D': 3, '7D': 7, '1M': 30, '3M': 90 }
-
 const allFiltersCleared = computed(
-  () =>
-    period.value === 'ALL' &&
-    category.value === '' &&
-    retrospect.value === 'ALL' &&
-    sortOrder.value === 'LATEST',
+  () => period.value === 'ALL' && category.value === '' && retrospect.value === 'ALL',
 )
 
 function clearFilters() {
   period.value = 'ALL'
   category.value = ''
   retrospect.value = 'ALL'
-  sortOrder.value = 'LATEST'
+  page.value = 0
 }
 
-const filteredTransactions = computed(() => {
-  const filtered = transactions.filter((transaction) => {
-    const matchesText =
-      search.value === '' ||
-      transaction.merchant.includes(search.value) ||
-      transaction.category.includes(search.value)
-    const matchesCategory = category.value === '' || transaction.category === category.value
-    const matchesRetrospect =
-      retrospect.value === 'ALL' ||
-      (retrospect.value === 'DONE' ? transaction.retrospected : !transaction.retrospected)
-    const days = periodDays[period.value]
-    const matchesPeriod =
-      days === undefined ||
-      transactionTime(transaction.at) >= latestTransactionTime - (days - 1) * 24 * 60 * 60 * 1000
-    return matchesText && matchesCategory && matchesRetrospect && matchesPeriod
-  })
+function dateInKst(date: Date) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(date)
+}
 
-  return [...filtered].sort((a, b) => {
-    const difference = transactionTime(b.at) - transactionTime(a.at)
-    return sortOrder.value === 'OLDEST' ? -difference : difference
-  })
+function queryPeriod() {
+  if (period.value === 'ALL') return {}
+  const days =
+    ({ '3D': 3, '7D': 7, '1M': 30, '3M': 90 } as Record<string, number>)[period.value] ?? 0
+  const today = new Date()
+  const from = new Date(today)
+  from.setDate(today.getDate() - (days - 1))
+  return { from: dateInKst(from), to: dateInKst(today) }
+}
+
+async function loadTransactions() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const result = await getTransactions({
+      ...queryPeriod(),
+      ...(category.value ? { category: category.value } : {}),
+      ...(tab.value === '회고 이력'
+        ? { hasRetrospect: true }
+        : retrospect.value === 'DONE'
+          ? { hasRetrospect: true }
+          : retrospect.value === 'TODO'
+            ? { hasRetrospect: false }
+            : {}),
+      page: page.value,
+      size: 20,
+    })
+    transactionsPage.value = result
+    if (result.totalPages > 0 && page.value >= result.totalPages) page.value = result.totalPages - 1
+  } catch (error) {
+    loadError.value = apiErrorMessage(error, '거래내역을 불러오지 못했어요. 다시 시도해주세요.')
+    transactionsPage.value = {
+      transactions: [],
+      page: page.value,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(
+  [period, category, retrospect, tab],
+  () => {
+    page.value = 0
+    void loadTransactions()
+  },
+  { immediate: true },
+)
+watch(page, () => {
+  void loadTransactions()
+})
+
+const transactions = computed(() => transactionsPage.value.transactions)
+const totalPages = computed(() => transactionsPage.value.totalPages)
+const retrospectSummary = computed(() => transactionsPage.value.totalElements)
+const retrospectHistory = computed(() => {
+  const groups = new Map<string, Transaction[]>()
+  for (const item of transactions.value) {
+    if (item.retrospectId === null) continue
+    const date = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      dateStyle: 'medium',
+      weekday: 'short',
+    }).format(new Date(item.occurredAt))
+    groups.set(date, [...(groups.get(date) ?? []), item])
+  }
+  return [...groups].map(([date, items]) => ({ date, items }))
 })
 
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
@@ -249,61 +234,6 @@ const satisfactionMeta: Record<
     badge: 'text-satisfaction-unknown bg-satisfaction-unknown/10',
   },
 }
-
-const retrospectSummary = [
-  { key: 'HIGH' as Satisfaction, count: 72 },
-  { key: 'LOW' as Satisfaction, count: 24 },
-  { key: 'UNKNOWN' as Satisfaction, count: 32 },
-]
-
-const retrospectHistory = [
-  {
-    date: '2025.05.20 (화)',
-    items: [
-      {
-        merchant: '스타벅스 강남역점',
-        amount: 5_200,
-        category: '카페 · 간식',
-        satisfaction: 'HIGH' as Satisfaction,
-      },
-      {
-        merchant: 'CU 역삼점',
-        amount: 3_800,
-        category: '편의점',
-        satisfaction: 'UNKNOWN' as Satisfaction,
-      },
-      {
-        merchant: 'SSG.COM',
-        amount: 129_000,
-        category: '쇼핑',
-        satisfaction: 'LOW' as Satisfaction,
-      },
-    ],
-  },
-  {
-    date: '2025.05.19 (월)',
-    items: [
-      {
-        merchant: '배달의민족',
-        amount: 18_500,
-        category: '식비 · 배달',
-        satisfaction: 'HIGH' as Satisfaction,
-      },
-      {
-        merchant: '이마트 역삼점',
-        amount: 45_600,
-        category: '마트 · 식료품',
-        satisfaction: 'UNKNOWN' as Satisfaction,
-      },
-      {
-        merchant: '올리브영 강남점',
-        amount: 27_000,
-        category: '뷰티 · 헬스',
-        satisfaction: 'LOW' as Satisfaction,
-      },
-    ],
-  },
-]
 </script>
 
 <template>
@@ -337,19 +267,6 @@ const retrospectHistory = [
           class="space-y-4"
         >
           <template v-if="tab === '거래내역'">
-            <div class="border-line flex items-center gap-2 rounded-2xl border px-4 py-3">
-              <IconSearch
-                :size="18"
-                class="text-ink-muted"
-              />
-              <input
-                v-model="search"
-                type="text"
-                placeholder="가맹점, 메모 검색"
-                class="text-ink placeholder:text-ink-faint flex-1 bg-transparent text-sm outline-none"
-              />
-            </div>
-
             <div class="flex gap-1">
               <button
                 type="button"
@@ -370,34 +287,40 @@ const retrospectHistory = [
                 :active="period !== 'ALL'"
               />
               <AppFilterDropdown
-                v-model="category"
-                label="카테고리 필터"
-                :options="categoryOptions"
-                :active="category !== ''"
-              />
-              <AppFilterDropdown
                 v-model="retrospect"
                 label="회고 필터"
                 :options="retrospectOptions"
                 :active="retrospect !== 'ALL'"
               />
-              <AppFilterDropdown
-                v-model="sortOrder"
-                label="정렬 필터"
-                :options="sortOptions"
-                :active="sortOrder !== 'LATEST'"
-                align="right"
-              />
             </div>
 
             <p class="text-ink-muted text-xs">
-              총 {{ filteredTransactions.length.toLocaleString('ko-KR') }}건
+              총 {{ transactionsPage.totalElements.toLocaleString('ko-KR') }}건
+            </p>
+
+            <p
+              v-if="loading"
+              class="text-ink-muted py-8 text-center text-sm"
+            >
+              거래내역을 불러오는 중...
+            </p>
+            <p
+              v-else-if="loadError"
+              class="text-brand py-8 text-center text-sm"
+            >
+              {{ loadError }}
+            </p>
+            <p
+              v-else-if="transactions.length === 0"
+              class="text-ink-muted py-8 text-center text-sm"
+            >
+              거래내역이 없어요.
             </p>
 
             <div class="divide-line border-line divide-y rounded-2xl border">
               <button
-                v-for="t in filteredTransactions"
-                :key="t.merchant + t.at"
+                v-for="t in transactions"
+                :key="t.id"
                 type="button"
                 class="flex w-full items-center gap-3 px-3 py-3"
               >
@@ -407,9 +330,9 @@ const retrospectHistory = [
                     t.merchant
                   }}</span>
                   <span class="text-ink-muted block text-xs">{{ t.category }}</span>
-                  <span class="text-ink-muted block text-[11px]"
-                    >{{ t.at }} · {{ issuerLabels[t.issuer] }}</span
-                  >
+                  <span class="text-ink-muted block text-[11px]">{{
+                    new Date(t.occurredAt).toLocaleString('ko-KR')
+                  }}</span>
                 </span>
                 <span class="shrink-0 text-right">
                   <span class="text-ink block text-sm font-bold"
@@ -418,18 +341,40 @@ const retrospectHistory = [
                   <span
                     class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
                     :class="
-                      t.retrospected
+                      t.retrospectId !== null
                         ? 'text-satisfaction-high bg-satisfaction-high/10'
                         : 'text-satisfaction-low bg-satisfaction-low/10'
                     "
                   >
-                    {{ t.retrospected ? '회고함' : '미회고' }}
+                    {{ t.retrospectId !== null ? '회고함' : '미회고' }}
                   </span>
                 </span>
                 <IconChevronRight
                   :size="16"
                   class="text-ink-muted shrink-0"
                 />
+              </button>
+            </div>
+            <div
+              v-if="totalPages > 1"
+              class="flex items-center justify-center gap-4 py-2"
+            >
+              <button
+                type="button"
+                class="text-ink-muted text-sm"
+                :disabled="page === 0"
+                @click="page--"
+              >
+                이전
+              </button>
+              <span class="text-ink text-sm">{{ page + 1 }} / {{ totalPages }}</span>
+              <button
+                type="button"
+                class="text-ink-muted text-sm"
+                :disabled="page + 1 >= totalPages"
+                @click="page++"
+              >
+                다음
               </button>
             </div>
           </template>
@@ -554,23 +499,15 @@ const retrospectHistory = [
 
           <template v-else>
             <div
-              class="divide-line border-line grid grid-cols-4 divide-x rounded-2xl border py-3 text-center"
+              class="divide-line border-line grid grid-cols-2 divide-x rounded-2xl border py-3 text-center"
             >
               <div>
                 <p class="text-ink-muted text-[11px]">총 회고 수</p>
                 <p class="text-ink mt-1 text-base font-extrabold">128건</p>
               </div>
-              <div
-                v-for="s in retrospectSummary"
-                :key="s.key"
-              >
-                <p class="text-ink-muted text-[11px]">{{ satisfactionMeta[s.key].label }}</p>
-                <p
-                  class="mt-1 text-base font-extrabold"
-                  :class="satisfactionMeta[s.key].text"
-                >
-                  {{ s.count }}
-                </p>
+              <div class="col-span-3">
+                <p class="text-ink-muted text-[11px]">총 회고 수</p>
+                <p class="text-ink mt-1 text-base font-extrabold">{{ retrospectSummary }}건</p>
               </div>
             </div>
 
@@ -588,7 +525,7 @@ const retrospectHistory = [
               <div class="divide-line border-line divide-y rounded-2xl border">
                 <button
                   v-for="item in group.items"
-                  :key="item.merchant"
+                  :key="item.id"
                   type="button"
                   class="flex w-full items-center gap-3 px-3 py-3"
                 >
@@ -605,13 +542,21 @@ const retrospectHistory = [
                     >
                     <span
                       class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                      :class="satisfactionMeta[item.satisfaction].badge"
+                      :class="
+                        item.satisfaction
+                          ? satisfactionMeta[item.satisfaction].badge
+                          : 'text-ink-muted bg-surface-muted'
+                      "
                     >
                       <component
-                        :is="satisfactionMeta[item.satisfaction].icon"
+                        :is="
+                          item.satisfaction
+                            ? satisfactionMeta[item.satisfaction].icon
+                            : IconQuestionMark
+                        "
                         :size="12"
                       />
-                      {{ satisfactionMeta[item.satisfaction].label }}
+                      {{ item.satisfaction ? satisfactionMeta[item.satisfaction].label : '미입력' }}
                     </span>
                   </span>
                   <IconChevronRight

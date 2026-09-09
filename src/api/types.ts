@@ -35,6 +35,24 @@ export interface TransactionUploadResult {
   skippedRows: { row: number; reason: string }[]
 }
 
+export interface Transaction {
+  id: number
+  occurredAt: string
+  merchant: string
+  amount: number
+  category: string
+  retrospectId: number | null
+  satisfaction: 'HIGH' | 'LOW' | 'UNKNOWN' | null
+}
+
+export interface TransactionPage {
+  transactions: Transaction[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export interface Goal {
   id: number
   name: string
