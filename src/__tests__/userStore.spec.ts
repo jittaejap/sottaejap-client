@@ -171,6 +171,39 @@ describe('user store — 새로고침 뒤 복원', () => {
     setItem.mockRestore()
   })
 
+  it('복원을 기다리는 동안 restoring이 서 있다 — App.vue가 이 값으로 스플래시를 그린다', async () => {
+    sessionStorage.setItem(storageKey, 'saved')
+    vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
+    const store = useUserStore()
+
+    // 첫 `await` 전에 세워져야 한다. 한 tick 늦으면 빈 화면이 한 번 그려진다.
+    const restored = store.restore()
+    expect(store.restoring).toBe(true)
+
+    await restored
+    expect(store.restoring).toBe(false)
+  })
+
+  it('저장된 토큰이 유효하지 않아도 restoring은 내려간다 — 서 있으면 스플래시가 남는다', async () => {
+    sessionStorage.setItem(storageKey, 'expired')
+    vi.mocked(getCurrentUser).mockRejectedValue(new Error('UNAUTHORIZED'))
+    const store = useUserStore()
+
+    await store.restore()
+
+    expect(store.restoring).toBe(false)
+  })
+
+  it('저장된 토큰이 없으면 restoring이 한 번도 서지 않는다 — 1L 로그인이 바로 뜬다', async () => {
+    const store = useUserStore()
+
+    const restored = store.restore()
+    expect(store.restoring).toBe(false)
+
+    await restored
+    expect(store.restoring).toBe(false)
+  })
+
   it('여러 번 불러도 사용자 조회는 한 번만 한다', async () => {
     sessionStorage.setItem(storageKey, 'saved')
     vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
