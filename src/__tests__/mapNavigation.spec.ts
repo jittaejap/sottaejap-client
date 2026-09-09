@@ -23,6 +23,15 @@ import {
   getSuggestions,
 } from '@/api/service'
 
+vi.mock('vue-echarts', () => ({
+  default: {
+    name: 'VChart',
+    props: ['option', 'autoresize'],
+    emits: ['click'],
+    template: '<div />',
+  },
+}))
+
 vi.mock('@/api/service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/service')>()),
   getSatisfactionMap: vi.fn(),
@@ -154,6 +163,20 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).not.toContain('나의 만족도 지도')
   })
 
+  it('차트 클릭 이벤트가 실제 행동 ID를 select 이벤트로 전달한다', () => {
+    const wrapper = mount(SatisfactionScatter, {
+      props: {
+        points: [mapPoint()],
+        boundaries: { x: 0.1, y: 0 },
+        selectedId: null,
+      },
+    })
+
+    wrapper.findComponent({ name: 'VChart' }).vm.$emit('click', { data: { behaviorId: 42 } })
+
+    expect(wrapper.emitted('select')).toEqual([[42]])
+  })
+
   it('필터 칩은 점을 선택하지만 상세 화면으로 들어가지 않는다', async () => {
     vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
       satisfactionMap([mapPoint(), mapPoint({ behaviorId: 7, name: '택시' })]),
@@ -261,6 +284,57 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).not.toContain('/5')
     expect(wrapper.text()).not.toContain('요기요')
     expect(wrapper.text()).not.toContain('교촌치킨')
+  })
+
+  it('지도에 없는 행동 ID로 직접 진입해도 행동 API로 상세를 연다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    vi.mocked(getBehavior).mockResolvedValueOnce(
+      behaviorDetail({
+        behavior: {
+          ...behaviorDetail().behavior,
+          behaviorId: 999,
+          name: '지도 밖 행동',
+          monthlyTotalAmount: 55_000,
+        },
+      }),
+    )
+    const wrapper = mountMap(await mapRouter('/map/behaviors/999'))
+    await flushPromises()
+
+    expect(getBehavior).toHaveBeenCalledWith(999)
+    expect(wrapper.text()).toContain('지도 밖 행동')
+    expect(wrapper.text()).toContain('55,000원')
+    expect(wrapper.text()).toContain('최근 30일 기준 소비 행동이에요')
+    expect(wrapper.text()).not.toContain('실제 배달')
+  })
+
+  it('딥링크 상세에서 뒤로가면 지도 URL과 화면을 함께 복원한다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    const router = await mapRouter('/map/behaviors/42')
+    const wrapper = mountMap(router)
+    await flushPromises()
+
+    const backButton = wrapper.find('header button')
+    await backButton.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('map')
+    expect(wrapper.text()).toContain('나의 만족도 지도')
+  })
+
+  it('같은 라우트에서 행동 ID만 바뀌어도 새 상세를 불러온다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([mapPoint(), mapPoint({ behaviorId: 7, name: '택시' })]),
+    )
+    const router = await mapRouter('/map/behaviors/42')
+    const wrapper = mountMap(router)
+    await flushPromises()
+
+    await router.push('/map/behaviors/7')
+    await flushPromises()
+
+    expect(getBehavior).toHaveBeenLastCalledWith(7)
+    expect(wrapper.text()).toContain('택시')
   })
 
   it('같은 점으로 되돌아와도 늦게 끝난 이전 요청이 최신 거래를 덮지 않는다', async () => {

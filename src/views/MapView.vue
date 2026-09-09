@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   IconBulb,
   IconCircleX,
@@ -37,6 +37,7 @@ import { apiErrorMessage } from '@/api/errorMessage'
 import { getBehavior, getSatisfactionMap } from '@/api/service'
 
 const route = useRoute()
+const router = useRouter()
 const mapStore = useMapStore()
 const subview = ref<'map' | 'behavior' | 'transactions'>('map')
 
@@ -44,6 +45,7 @@ const selectedId = ref<number | null>(null)
 const filter = ref<string>('전체')
 const loading = ref(true)
 const loadError = ref('')
+const fallbackSelected = ref<SatisfactionMapPoint | null>(null)
 
 async function loadMap() {
   loading.value = true
@@ -58,13 +60,11 @@ async function loadMap() {
   }
   const behaviorId = Number(route.params.behaviorId)
   if (Number.isInteger(behaviorId)) {
-    const match = mapStore.data.points.find((p) => p.behaviorId === behaviorId)
-    if (match) {
-      selectedId.value = match.behaviorId
-      subview.value = 'behavior'
-    }
+    selectedId.value = behaviorId
+    subview.value = 'behavior'
+  } else {
+    selectedId.value ??= mapStore.sortedPoints[0]?.behaviorId ?? null
   }
-  selectedId.value ??= mapStore.sortedPoints[0]?.behaviorId ?? null
   loading.value = false
 }
 
@@ -75,7 +75,9 @@ const visiblePoints = computed(() =>
   filter.value === '전체' ? points.value : points.value.filter((p) => p.name === filter.value),
 )
 const selected = computed<SatisfactionMapPoint | null>(
-  () => points.value.find((p) => p.behaviorId === selectedId.value) ?? null,
+  () =>
+    points.value.find((p) => p.behaviorId === selectedId.value) ??
+    (fallbackSelected.value?.behaviorId === selectedId.value ? fallbackSelected.value : null),
 )
 
 /** -1~+1 축을 회고 화면과 같은 5점 척도로 환산한다. */
@@ -120,6 +122,13 @@ async function loadTransactions(behaviorId: number | null) {
     const detail = await getBehavior(behaviorId)
     if (requestId !== transactionsRequestId) return
     behaviorTransactions.value = detail.transactions
+    if (!mapStore.data?.points.some((point) => point.behaviorId === behaviorId)) {
+      fallbackSelected.value = {
+        ...detail.behavior,
+        prescription: '',
+        cta: null,
+      }
+    }
   } catch (error) {
     if (requestId !== transactionsRequestId) return
     transactionsError.value = apiErrorMessage(
@@ -131,6 +140,21 @@ async function loadTransactions(behaviorId: number | null) {
 }
 
 watch(selectedId, loadTransactions)
+
+watch(
+  () => [route.name, route.params.behaviorId] as const,
+  ([routeName, value]) => {
+    if (routeName === 'map') {
+      subview.value = 'map'
+      return
+    }
+    const behaviorId = Number(value)
+    if (!Number.isInteger(behaviorId)) return
+    fallbackSelected.value = null
+    selectedId.value = behaviorId
+    subview.value = 'behavior'
+  },
+)
 
 const transactions = computed(() =>
   behaviorTransactions.value.map((transaction) => ({
@@ -156,6 +180,18 @@ function openBehavior(behaviorId: number) {
   selectedId.value = behaviorId
   subview.value = 'behavior'
 }
+
+function handleBack() {
+  if (subview.value === 'transactions') {
+    subview.value = 'behavior'
+    return
+  }
+  if (subview.value === 'behavior' && route.name === 'behavior-detail') {
+    void router.replace({ name: 'map' })
+    return
+  }
+  subview.value = 'map'
+}
 </script>
 
 <template>
@@ -167,7 +203,7 @@ function openBehavior(behaviorId: number) {
     />
     <AppTopBar
       v-else
-      :back-handler="() => (subview = subview === 'transactions' ? 'behavior' : 'map')"
+      :back-handler="handleBack"
     />
 
     <main class="flex-1 overflow-y-auto px-4 pb-6">
@@ -470,7 +506,10 @@ function openBehavior(behaviorId: number) {
               </div>
             </div>
 
-            <div class="bg-brand/5 rounded-2xl p-4">
+            <div
+              v-if="selected.prescription"
+              class="bg-brand/5 rounded-2xl p-4"
+            >
               <p class="text-brand flex items-center gap-1.5 text-sm font-semibold">
                 <IconBulb :size="15" /> AI 인사이트
               </p>
