@@ -15,7 +15,7 @@ export default defineConfig({
       // 기본값은 등록 스크립트를 blocking으로 넣어 첫 렌더가 그만큼 밀린다.
       injectRegister: 'script-defer',
       strategies: 'generateSW',
-      includeAssets: ['pwa-icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['pwa-icon.svg', 'favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
         name: '소때잡',
