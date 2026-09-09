@@ -62,6 +62,7 @@ import {
   getRetrospectCandidates,
   getSuggestions,
   rejectSuggestionById,
+  saveRetrospect,
 } from '@/api/service'
 import type { ReflectionStep } from '@/api/enums'
 import type {
@@ -631,9 +632,53 @@ function answerRepeat(label: string) {
   answer('이 소비를 앞으로도 반복할 의향이 있나요?', label, 'wrapup')
 }
 
-function finishRetrospect() {
-  reasonExpanded.value = false
+/**
+ * 05 §2 `POST /retrospects` (FR-04-14).
+ * **저장이 성공한 뒤에만** 저장 안내와 소비 분석 채널 전환을 한다.
+ * 저장 응답(`behaviorId` 등)은 이번 범위에서 쓰지 않는다 — 지도·제안은 다음 조회에서 재계산값을 받는다 (01 E-61 · E-81).
+ */
+async function finishRetrospect() {
+  const candidate = chatStore.selectedCandidate
+  if (!candidate || requestPending.value) return
+
+  // 확정하지 않은 항목이 남았으면 값을 지어내지 않고 그 질문으로 되돌아간다 (01 E-20).
+  const { satisfaction, purpose, companion, repeatIntent } = chatStore.reflection
+  if (purpose === null || companion === null || repeatIntent === null) {
+    say('ai', '저장하기 전에 남은 질문 하나만 확인할게요.', thinkingAvatar)
+    step.value = purpose === null ? 'qaPurpose' : companion === null ? 'qaCompanion' : 'qaRepeat'
+    return
+  }
+
   say('user', '회고 마무리하기')
+  requestPending.value = true
+  try {
+    await saveRetrospect({
+      transactionId: candidate.transactionId,
+      satisfaction,
+      purpose,
+      companion,
+      repeatIntent,
+      source: 'CANDIDATE',
+    })
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'DUPLICATE_RETROSPECT') {
+      say('ai', '이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
+      backToCandidates()
+      return
+    }
+    say('ai', await apiErrorMessage(error, '회고를 저장하지 못했어요. 다시 시도해주세요.'))
+    return
+  } finally {
+    requestPending.value = false
+  }
+
+  // 회고가 생긴 거래는 다음 조회에서 후보에서 빠진다 (01 E-62) — 목록에서도 바로 뺀다.
+  chatStore.candidates = chatStore.candidates.filter(
+    (c) => c.transactionId !== candidate.transactionId,
+  )
+  chatStore.selectedCandidate = null
+  chatStore.resetReflection()
+  reasonExpanded.value = false
   say('ai', '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.', happyAvatar)
   chatStore.activate('analysis')
   if (chatStore.histories.analysis.length === 0) {
