@@ -9,6 +9,7 @@ import {
   IconChartPie,
   IconCheck,
   IconChevronDown,
+  IconAlertTriangle,
   IconChevronRight,
   IconChevronUp,
   IconClock,
@@ -36,7 +37,9 @@ import {
   PURPOSE_OPTIONS,
   REPEAT_OPTIONS,
   SATISFACTION_OPTIONS,
+  type TagOption,
   tagLabels,
+  tagValue,
 } from '@/components/chat/tagOptions'
 import aiAvatarImage from '@/assets/images/ai/01_main_wave_hat.png'
 import aiSmallAvatarImage from '@/assets/images/ai/02_wave_small_hat.png'
@@ -53,13 +56,21 @@ import { ApiError } from '@/api/apiError'
 import {
   adoptSuggestion,
   askFinance,
+  chatRetrospect,
   getAnalysis,
   getGoals,
   getRetrospectCandidates,
   getSuggestions,
   rejectSuggestionById,
 } from '@/api/service'
-import type { Analysis, Goal, Suggestion } from '@/api/types'
+import type { ReflectionStep } from '@/api/enums'
+import type {
+  Analysis,
+  Goal,
+  RetrospectChatMessage,
+  RetrospectChatResult,
+  Suggestion,
+} from '@/api/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -146,10 +157,79 @@ const filtered = computed(() =>
   }),
 )
 
+/** 05 §0 `reflectionStep` 6종과 화면 단계의 1:1 매핑 (01 E-69). */
+const CHAT_STEP_BY_REFLECTION_STEP: Record<ReflectionStep, ChatStep> = {
+  INTRO: 'candidate',
+  SATISFACTION: 'qaSatisfaction',
+  PURPOSE: 'qaPurpose',
+  COMPANION: 'qaCompanion',
+  REPEAT: 'qaRepeat',
+  CONFIRM: 'wrapup',
+}
+
+/** 위 매핑 하나만 보고 되돌린다 — 표를 둘로 나누면 언젠가 어긋난다. */
+function reflectionStepOf(chatStep: ChatStep): ReflectionStep {
+  const found = (Object.keys(CHAT_STEP_BY_REFLECTION_STEP) as ReflectionStep[]).find(
+    (key) => CHAT_STEP_BY_REFLECTION_STEP[key] === chatStep,
+  )
+  return found ?? 'INTRO'
+}
+
+/** 서버는 최근 6건만 AI에 전달한다 (01 E-87). */
+const RECENT_MESSAGE_LIMIT = 6
+/** `content` 상한. 길이는 **코드 포인트**로 센다 (01 E-110). */
+const CONTENT_LIMIT = { user: 500, assistant: 2_000 } as const
+
+/**
+ * 05 §2 #11 `recentMessages` — 오름차순(오래된 → 최신) · 보내기 전 마지막 6건.
+ * `ai`는 `assistant`로 바꾸고 빈 내용은 뺀다. 어기면 400 `INVALID_INPUT`이고 서버는 AI를 부르지 않는다.
+ */
+function recentMessages(): RetrospectChatMessage[] {
+  return chatStore.histories.retrospect
+    .map((entry) => {
+      const role = entry.role === 'ai' ? ('assistant' as const) : ('user' as const)
+      return { role, content: [...entry.text.trim()].slice(0, CONTENT_LIMIT[role]).join('') }
+    })
+    .filter((message) => message.content.length > 0)
+    .slice(-RECENT_MESSAGE_LIMIT)
+}
+
 const purposeOptions = tagLabels(PURPOSE_OPTIONS)
 const companionOptions = tagLabels(COMPANION_OPTIONS)
 const satisfactionOptions = tagLabels(SATISFACTION_OPTIONS)
 const repeatOptions = tagLabels(REPEAT_OPTIONS)
+
+function labelOf<V>(options: readonly TagOption<V>[], value: V) {
+  return options.find((option) => option.value === value)?.label
+}
+
+/**
+ * 이번 단계에서 미리 눌러 둘 칩.
+ * 서버는 AI가 못 뽑은 항목에 요청의 확정값을 그대로 돌려주므로(05 §2 #11),
+ * 이미 확정한 값과 다를 때만 후보로 본다.
+ */
+const suggestedLabel = computed(() => {
+  const suggestion = chatStore.suggestedReflection
+  if (!suggestion) return undefined
+  const confirmed = chatStore.reflection
+  if (step.value === 'qaSatisfaction')
+    return suggestion.satisfaction === confirmed.satisfaction
+      ? undefined
+      : labelOf(SATISFACTION_OPTIONS, suggestion.satisfaction)
+  if (step.value === 'qaPurpose')
+    return suggestion.purpose === null || suggestion.purpose === confirmed.purpose
+      ? undefined
+      : labelOf(PURPOSE_OPTIONS, suggestion.purpose)
+  if (step.value === 'qaCompanion')
+    return suggestion.companion === null || suggestion.companion === confirmed.companion
+      ? undefined
+      : labelOf(COMPANION_OPTIONS, suggestion.companion)
+  if (step.value === 'qaRepeat')
+    return suggestion.repeatIntent === null || suggestion.repeatIntent === confirmed.repeatIntent
+      ? undefined
+      : labelOf(REPEAT_OPTIONS, suggestion.repeatIntent)
+  return undefined
+})
 
 const activeSuggestion = ref<Suggestion | null>(null)
 const serverGoals = ref<Goal[]>([])
@@ -379,10 +459,13 @@ async function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
 async function onSend(text: string) {
   const message = text.trim()
   if (requestPending.value) return
+  // 05 §2 #11 · #24의 상한은 서버 `@Size`와 같은 UTF-16 단위다 (01 E-112).
   if (message.length === 0 || message.length > 500) {
-    say('ai', '질문은 공백 없이 500자 이내로 입력해 주세요.')
+    say('ai', '메시지는 공백 없이 500자 이내로 입력해 주세요.')
     return
   }
+  // 방금 보낼 메시지는 이력에서 빼야 하므로 대화에 쌓기 전에 먼저 모은다.
+  const recent = recentMessages()
   say('user', message)
   if (activeMode.value === 'qna') {
     requestPending.value = true
@@ -408,13 +491,74 @@ async function onSend(text: string) {
   } else if (activeMode.value === 'analysis') {
     say('ai', '소비 분석에 대한 질문을 확인했어요. 현재 분석 맥락에서 이어서 살펴볼게요.')
   } else {
-    say('ai', '회고 내용을 확인했어요. 현재 거래에 대한 회고로 이어서 기록할게요.')
+    const candidate = chatStore.selectedCandidate
+    if (!candidate) {
+      say('ai', '먼저 회고할 거래를 골라 주세요.')
+      return
+    }
+    requestPending.value = true
+    try {
+      applyChatResult(
+        await chatRetrospect({
+          transactionId: candidate.transactionId,
+          message,
+          step: reflectionStepOf(step.value),
+          reflection: chatStore.reflection,
+          recentMessages: recent,
+        }),
+        thinkingAvatar,
+      )
+    } catch (error) {
+      await handleRetrospectChatError(error)
+    } finally {
+      requestPending.value = false
+    }
   }
+}
+
+/**
+ * 05 §2 #11 응답을 화면에 반영한다.
+ * `step`은 서버가 계산한 다음 단계를 그대로 따르고, `reflection`은 확정하지 않은 AI 후보값이다.
+ */
+function applyChatResult(result: RetrospectChatResult, avatar?: string) {
+  chatStore.templateMode = result.fallback
+  chatStore.suggestedReflection = result.reflection
+  say('ai', result.reply, avatar)
+  step.value = CHAT_STEP_BY_REFLECTION_STEP[result.step]
+}
+
+async function handleRetrospectChatError(error: unknown) {
+  if (error instanceof ApiError && error.code === 'LLM_UNAVAILABLE') {
+    // 503이면 템플릿 배너를 띄우고 P0 선택지 버튼으로 그대로 이어간다 (03 S11 · FR-04-15).
+    chatStore.templateMode = true
+    say('ai', '지금은 AI 연결이 원활하지 않아 기본 질문으로 이어갈게요.', thinkingAvatar)
+    return
+  }
+  if (error instanceof ApiError && error.code === 'DUPLICATE_RETROSPECT') {
+    say('ai', '이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
+    backToCandidates()
+    return
+  }
+  if (error instanceof ApiError && error.code === 'NOT_FOUND') {
+    say('ai', '그 거래를 찾지 못했어요. 다른 거래를 골라 주세요.', searchAvatar)
+    backToCandidates()
+    return
+  }
+  say(
+    'ai',
+    await apiErrorMessage(error, '회고 대화를 이어가지 못했어요. 잠시 후 다시 시도해주세요.'),
+  )
+}
+
+function backToCandidates() {
+  chatStore.selectedCandidate = null
+  chatStore.resetReflection()
+  step.value = chatStore.candidates.length > 0 ? 'pick' : 'empty'
 }
 
 function acceptCandidate() {
   say('user', '회고해볼게요')
-  startQa()
+  void startQa()
 }
 
 function openPicker() {
@@ -427,25 +571,64 @@ function confirmPick() {
   const picked = candidates.value.find((c) => c.transactionId === pickedId.value)
   if (!picked) return
   chatStore.selectedCandidate = picked
-  startQa()
+  void startQa()
 }
 
-function startQa() {
+/**
+ * 후보를 고른 직후 `INTRO` 턴을 한 번 부른다 (`message` 생략).
+ * 응답 `reply`가 선정 이유를 AI가 재구성한 첫 발화다 (FR-04-10·11).
+ */
+async function startQa() {
   const candidate = chatStore.selectedCandidate
-  if (!candidate) return
+  if (!candidate || requestPending.value) return
+  chatStore.resetReflection()
   say('user', `${candidate.merchant} ${candidate.amount.toLocaleString('ko-KR')}원 회고할게요`)
-  say(
-    'ai',
-    `좋아요! ${candidate.merchant} ${candidate.amount.toLocaleString('ko-KR')}원에 대해 함께 돌아볼까요? 😊`,
-    cheerAvatar,
-  )
+  // 서버가 실패해도 P0 선택지 모드로 이어갈 수 있게 먼저 단계를 옮긴다.
   step.value = 'qaSatisfaction'
+  requestPending.value = true
+  try {
+    applyChatResult(
+      await chatRetrospect({
+        transactionId: candidate.transactionId,
+        step: 'INTRO',
+        reflection: chatStore.reflection,
+        recentMessages: recentMessages(),
+      }),
+      cheerAvatar,
+    )
+  } catch (error) {
+    await handleRetrospectChatError(error)
+  } finally {
+    requestPending.value = false
+  }
 }
 
 function answer(question: string, value: string, nextStep: ChatStep) {
+  chatStore.suggestedReflection = null
   say('ai', question, thinkingAvatar)
   say('user', value)
   step.value = nextStep
+}
+
+// 칩 선택은 서버를 부르지 않는다 — 사용자가 확정한 값만 reflection에 담는다 (P0 선택지 모드 · E-20).
+function answerSatisfaction(label: string) {
+  chatStore.reflection.satisfaction = tagValue(SATISFACTION_OPTIONS, label)
+  answer('이 소비는 어땠나요?', label, 'qaPurpose')
+}
+
+function answerPurpose(label: string) {
+  chatStore.reflection.purpose = tagValue(PURPOSE_OPTIONS, label)
+  answer('이 소비의 목적은 무엇이었나요?', label, 'qaCompanion')
+}
+
+function answerCompanion(label: string) {
+  chatStore.reflection.companion = tagValue(COMPANION_OPTIONS, label)
+  answer('이 소비는 누구와 함께했나요?', label, 'qaRepeat')
+}
+
+function answerRepeat(label: string) {
+  chatStore.reflection.repeatIntent = tagValue(REPEAT_OPTIONS, label)
+  answer('이 소비를 앞으로도 반복할 의향이 있나요?', label, 'wrapup')
 }
 
 function finishRetrospect() {
@@ -532,6 +715,25 @@ async function apiErrorMessage(error: unknown, fallback: string) {
       bell
       bell-dot
     />
+
+    <div
+      v-if="activeMode === 'retrospect' && chatStore.templateMode"
+      role="status"
+      class="bg-preview-yellow text-preview-yellow-ink flex shrink-0 items-center gap-2 px-4 py-2.5 text-[13px] font-medium"
+    >
+      <IconAlertTriangle
+        :size="16"
+        class="shrink-0"
+      />
+      <span class="flex-1">기본 질문으로 진행하고 있어요.</span>
+      <button
+        type="button"
+        class="shrink-0 font-bold underline"
+        @click="chatStore.templateMode = false"
+      >
+        다시 연결
+      </button>
+    </div>
 
     <main
       ref="thread"
@@ -864,7 +1066,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="satisfactionOptions"
-          @pick="(v) => answer('이 소비는 어땠나요?', v, 'qaPurpose')"
+          :suggested="suggestedLabel"
+          @pick="answerSatisfaction"
         />
       </template>
 
@@ -876,7 +1079,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="purposeOptions"
-          @pick="(v) => answer('이 소비의 목적은 무엇이었나요?', v, 'qaCompanion')"
+          :suggested="suggestedLabel"
+          @pick="answerPurpose"
         />
       </template>
 
@@ -888,7 +1092,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="companionOptions"
-          @pick="(v) => answer('이 소비는 누구와 함께했나요?', v, 'qaRepeat')"
+          :suggested="suggestedLabel"
+          @pick="answerCompanion"
         />
       </template>
 
@@ -900,7 +1105,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="repeatOptions"
-          @pick="(v) => answer('이 소비를 앞으로도 반복할 의향이 있나요?', v, 'wrapup')"
+          :suggested="suggestedLabel"
+          @pick="answerRepeat"
         />
       </template>
 
