@@ -9,12 +9,15 @@ import HomeView from '@/views/HomeView.vue'
 import MapView from '@/views/MapView.vue'
 import { ApiError } from '@/api/apiError'
 import type {
+  Analysis,
   BehaviorDetail,
   BehaviorTransaction,
+  MonthlyReport,
   SatisfactionMap,
   SatisfactionMapPoint,
 } from '@/api/types'
 import {
+  getAnalysis,
   getBehavior,
   getGoals,
   getMonthlyReport,
@@ -40,6 +43,7 @@ vi.mock('@/api/service', async (importOriginal) => ({
   getMonthlyReport: vi.fn(),
   getSuggestions: vi.fn(),
   getNotifications: vi.fn(),
+  getAnalysis: vi.fn(),
 }))
 
 function mapPoint(overrides: Partial<SatisfactionMapPoint> = {}): SatisfactionMapPoint {
@@ -136,7 +140,42 @@ beforeEach(() => {
   vi.mocked(getMonthlyReport).mockRejectedValue(new Error('offline'))
   vi.mocked(getSuggestions).mockResolvedValue([])
   vi.mocked(getNotifications).mockResolvedValue({ unreadCount: 0, notifications: [] })
+  vi.mocked(getAnalysis).mockRejectedValue(new Error('offline'))
 })
+
+function monthlyReport(overrides: Partial<MonthlyReport> = {}): MonthlyReport {
+  return {
+    yearMonth: '2026-09',
+    finalized: true,
+    totalSpending: 1_200_000,
+    previousTotalSpending: 1_000_000,
+    savedAmount: 42_000,
+    unsatisfiedCount: 0,
+    repeatCount: 0,
+    previousRepeatCount: 0,
+    goalAllocations: [],
+    ...overrides,
+  }
+}
+
+function analysis(highlight: string): Analysis {
+  return {
+    analysisYearMonth: '2026-09',
+    byVerdict: [],
+    pending: { clusterCount: 0, monthlyTotalAmount: 0, share: null },
+    byCategory: [],
+    highlight,
+  }
+}
+
+async function mountHome() {
+  const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+  await router.push('/')
+  await router.isReady()
+  const wrapper = mount(HomeView, { global: { plugins: [createPinia(), router], stubs: {} } })
+  await flushPromises()
+  return wrapper
+}
 
 describe('만족도 지도 이동', () => {
   it('API 성공 시 정렬된 첫 행동을 선택하고 실제 축과 상세를 표시한다', async () => {
@@ -368,25 +407,83 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).not.toContain('늦게 끝난 다른 점')
   })
 
-  it('홈 행동 변화 카드는 behaviorId path param으로 상세 화면을 연다', async () => {
-    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
-    await router.push('/')
-    await router.isReady()
-    const pushSpy = vi.spyOn(router, 'push')
-    const wrapper = mount(HomeView, {
-      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
-    })
+  it('홈 반복 횟수 카드는 월간 리포트의 전월 대비 값을 그리고 절감액 상세를 연다', async () => {
+    vi.mocked(getMonthlyReport).mockResolvedValueOnce(
+      monthlyReport({ repeatCount: 2, previousRepeatCount: 4, unsatisfiedCount: 7 }),
+    )
+    const wrapper = await mountHome()
 
-    const behaviorButton = wrapper
+    expect(wrapper.text()).toContain('반복 횟수 변화')
+    expect(wrapper.text()).toContain('4회 → 2회')
+    expect(wrapper.text()).toContain('2회 감소')
+    // 상수 문구는 남지 않는다.
+    expect(wrapper.text()).not.toContain('심야 배달')
+    expect(wrapper.text()).not.toContain('-50% 감소')
+
+    const repeatButton = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('행동 변화'))
-    if (!behaviorButton) throw new Error('행동 변화 카드를 찾지 못했습니다.')
-    await behaviorButton.trigger('click')
+      .find((button) => button.text().includes('반복 횟수 변화'))
+    if (!repeatButton) throw new Error('반복 횟수 변화 카드를 찾지 못했습니다.')
+    await repeatButton.trigger('click')
 
-    expect(pushSpy).toHaveBeenCalledWith({
-      name: 'behavior-detail',
-      params: { behaviorId: 6 },
-    })
+    // 03 3-1 `3. 보조 지표` — 절감액 상세가 아쉬운 소비 건수를 함께 보여 준다.
+    expect(wrapper.text()).toContain('아쉬운 소비 건수')
+    expect(wrapper.text()).toContain('7건')
+    expect(wrapper.text()).not.toContain('월별 절감액 추이')
+    expect(wrapper.text()).not.toContain('절감 카테고리 TOP 3')
+  })
+
+  it('전월 반복 횟수가 null이면 화살표 없이 이번 달 값만 말한다', async () => {
+    vi.mocked(getMonthlyReport).mockResolvedValueOnce(
+      monthlyReport({ repeatCount: 3, previousRepeatCount: null }),
+    )
+    const wrapper = await mountHome()
+
+    expect(wrapper.text()).toContain('3회')
+    expect(wrapper.text()).toContain('전월 데이터 없음')
+    expect(wrapper.text()).not.toContain('→ 3회')
+  })
+
+  it('AI 브리핑은 GET /analysis의 highlight를 그대로 쓰고 실패하면 카드가 사라진다', async () => {
+    vi.mocked(getAnalysis).mockResolvedValueOnce(
+      analysis('배달은 대부분 심야에 몰려 있고, 예산의 8%를 쓰면서 만족도는 가장 낮았어요.'),
+    )
+    const wrapper = await mountHome()
+
+    expect(wrapper.text()).toContain('AI 브리핑')
+    expect(wrapper.text()).toContain('예산의 8%를 쓰면서 만족도는 가장 낮았어요.')
+    expect(wrapper.text()).not.toContain('18% 줄었어요')
+
+    const offline = await mountHome()
+    expect(offline.text()).not.toContain('AI 브리핑')
+    expect(offline.text()).not.toContain('18% 줄었어요')
+  })
+
+  it('지도 미리보기는 실제 사분면 건수를 세고 점이 0개면 빈 상태를 보여 준다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([
+        mapPoint(),
+        mapPoint({ behaviorId: 7, quadrant: 'PROTECT' }),
+        mapPoint({ behaviorId: 8, quadrant: null, evaluationStatus: 'PENDING', verdict: null }),
+      ]),
+    )
+    const wrapper = await mountHome()
+
+    expect(wrapper.text()).toContain('만족도 지도 미리보기')
+    // PRIORITY 1 · PROTECT 1 · 보류는 어느 사분면에도 세지 않는다. 가짜 1·2·1·2가 아니다.
+    expect(wrapper.text()).toContain('1개')
+    expect(wrapper.text()).toContain('0개')
+    expect(wrapper.text()).not.toContain('2개')
+
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([]))
+    const empty = await mountHome()
+    expect(empty.text()).toContain('아직 지도에 그릴 회고가 없어요.')
+    expect(empty.text()).not.toContain('0개')
+
+    // 조회에 실패하면 구획 자체가 사라진다 — 실패를 빈 상태로 바꿔 말하지 않는다.
+    const offline = await mountHome()
+    expect(offline.text()).not.toContain('만족도 지도 미리보기')
+    expect(offline.text()).not.toContain('아직 지도에 그릴 회고가 없어요.')
   })
 
   it('홈은 raw 목표 비율과 nullable 월간 리포트를 구분해 표시한다', async () => {
@@ -412,13 +509,7 @@ describe('만족도 지도 이동', () => {
       previousRepeatCount: null,
       goalAllocations: [],
     })
-    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
-    await router.push('/')
-    await router.isReady()
-    const wrapper = mount(HomeView, {
-      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
-    })
-    await flushPromises()
+    const wrapper = await mountHome()
 
     expect(wrapper.text()).toContain('2%')
     expect(wrapper.text()).toContain('데이터 없음')
@@ -447,13 +538,7 @@ describe('만족도 지도 이동', () => {
       previousRepeatCount: 0,
       goalAllocations: [],
     })
-    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
-    await router.push('/')
-    await router.isReady()
-    const wrapper = mount(HomeView, {
-      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
-    })
-    await flushPromises()
+    const wrapper = await mountHome()
 
     expect(wrapper.text()).toContain('42,000원')
     expect(wrapper.text()).toContain('전월 대비 +20%')
@@ -482,13 +567,7 @@ describe('만족도 지도 이동', () => {
       previousRepeatCount: 0,
       goalAllocations: [],
     })
-    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
-    await router.push('/')
-    await router.isReady()
-    const wrapper = mount(HomeView, {
-      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
-    })
-    await flushPromises()
+    const wrapper = await mountHome()
 
     expect(wrapper.text()).toContain('이번 달 추가 지출')
     expect(wrapper.text()).toContain('36,000원')
