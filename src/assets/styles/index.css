@@ -1,10 +1,46 @@
 @import 'tailwindcss';
 @import './tokens.css';
 
+/* 높이는 뷰포트에 고정한다. `min-height`면 문서가 뷰포트보다 커질 수 있다. */
 html,
 body,
 #app {
-  min-height: 100%;
+  height: 100%;
+}
+
+/*
+ * 문서(앱 컨테이너 바깥)는 스크롤하지 않는다. 실제 스크롤은 각 뷰의
+ * `<main class="overflow-y-auto">`에서만 일어난다 — 문서가 같이 밀리면 그 안에 있는
+ * 헤더·하단 탭바가 따라 움직이고, iOS에서는 끝에서 러버밴드로 튄다.
+ * `overscroll-behavior`는 루트 요소에서만 뷰포트로 전파되므로 `html`에 반드시 준다
+ * (`overflow`와 달리 `body`에서는 전파되지 않는다).
+ */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/*
+ * 더블탭 확대만 끈다 — 목록을 두 번 두드리면 화면이 확대돼 레이아웃이 어긋난다.
+ * `none`은 스크롤 자체를 죽이므로 쓰지 않는다. `manipulation`은 스크롤·핀치·탭을 그대로 남긴다.
+ */
+html {
+  touch-action: manipulation;
+}
+
+/*
+ * 스크롤바를 그리지 않는다 — 모바일 전용 PWA(max-w-[390px])라 네이티브 앱처럼 보이게 한다.
+ * `scrollbar-width`는 상속되지 않으므로 `*`로 모든 스크롤 컨테이너에 준다.
+ * Chrome 121+ · Safari 18.2+는 첫 규칙으로 끝나고, 그 이전 WebKit은 두 번째가 받는다.
+ * 그리기만 끄는 것이라 스크롤 동작 자체는 그대로다(`overflow-y: auto` 유지).
+ */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
 }
 
 body {

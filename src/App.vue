@@ -13,7 +13,8 @@ void userStore.restore()
 </script>
 
 <template>
-  <div class="mx-auto h-dvh max-w-[390px] overflow-hidden">
+  <!-- 100dvh는 주소창이 접히고 펴질 때마다 다시 측정돼 셸 높이가 변하고, 그때 헤더와 하단 탭바가 밀린다. -->
+  <div class="mx-auto h-svh max-w-[390px] overflow-hidden">
     <AppSplash v-if="userStore.restoring" />
     <RouterView
       v-else
