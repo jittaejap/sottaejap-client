@@ -8,9 +8,6 @@ export type Satisfaction = (typeof SATISFACTION)[number]
 export const TIME_SLOT = ['MORNING', 'DAY', 'EVENING', 'NIGHT'] as const
 export type TimeSlot = (typeof TIME_SLOT)[number]
 
-export const CARD_ISSUER = ['KB', 'HANA', 'SHINHAN'] as const
-export type CardIssuer = (typeof CARD_ISSUER)[number]
-
 export const RETROSPECT_STATUS = ['ACTIVE', 'PAUSED', 'COMPLETED'] as const
 export type RetrospectStatus = (typeof RETROSPECT_STATUS)[number]
 

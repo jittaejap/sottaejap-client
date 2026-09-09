@@ -10,6 +10,7 @@ import type {
   SatisfactionMap,
   Suggestion,
   TransactionUploadResult,
+  TransactionPage,
   UserMe,
 } from '@/api/types'
 
@@ -60,6 +61,18 @@ export async function uploadTransactions(file: File) {
   const form = new FormData()
   form.append('file', file)
   const response = await httpClient.post<TransactionUploadResult>('/transactions/upload', form)
+  return response.data
+}
+
+export async function getTransactions(params: {
+  from?: string
+  to?: string
+  category?: string
+  hasRetrospect?: boolean
+  page?: number
+  size?: number
+}) {
+  const response = await httpClient.get<TransactionPage>('/transactions', { params })
   return response.data
 }
 
