@@ -55,6 +55,11 @@ async function loadMap() {
   } catch (error) {
     mapStore.data = null
     loadError.value = apiErrorMessage(error, '만족도 지도를 불러오지 못했어요. 다시 시도해주세요.')
+    const behaviorId = Number(route.params.behaviorId)
+    if (Number.isInteger(behaviorId)) {
+      selectedId.value = behaviorId
+      subview.value = 'behavior'
+    }
     loading.value = false
     return
   }
@@ -118,11 +123,13 @@ async function loadTransactions(behaviorId: number | null) {
   transactionsError.value = ''
   transactionsLoading.value = behaviorId !== null
   if (behaviorId === null) return
+  const isFallback = !mapStore.data?.points.some((point) => point.behaviorId === behaviorId)
   try {
     const detail = await getBehavior(behaviorId)
     if (requestId !== transactionsRequestId) return
     behaviorTransactions.value = detail.transactions
-    if (!mapStore.data?.points.some((point) => point.behaviorId === behaviorId)) {
+    if (isFallback) {
+      // GET /behaviors/{id} 계약에는 지도 전용 prescription·cta가 없으므로 폴백 상세에서는 숨긴다.
       fallbackSelected.value = {
         ...detail.behavior,
         prescription: '',
@@ -133,7 +140,9 @@ async function loadTransactions(behaviorId: number | null) {
     if (requestId !== transactionsRequestId) return
     transactionsError.value = apiErrorMessage(
       error,
-      '거래 내역을 불러오지 못했어요. 다시 시도해주세요.',
+      isFallback
+        ? '행동 상세를 불러오지 못했어요. 다시 시도해주세요.'
+        : '거래 내역을 불러오지 못했어요. 다시 시도해주세요.',
     )
   }
   transactionsLoading.value = false
@@ -146,6 +155,10 @@ watch(
   ([routeName, value]) => {
     if (routeName === 'map') {
       subview.value = 'map'
+      fallbackSelected.value = null
+      if (!mapStore.data?.points.some((point) => point.behaviorId === selectedId.value)) {
+        selectedId.value = mapStore.sortedPoints[0]?.behaviorId ?? null
+      }
       return
     }
     const behaviorId = Number(value)
@@ -526,6 +539,26 @@ function handleBack() {
                 variant="outline"
                 @click="subview = 'transactions'"
                 >거래 내역 보기</PrimaryButton
+              >
+            </div>
+          </template>
+
+          <template v-else-if="subview === 'behavior'">
+            <p
+              v-if="transactionsLoading"
+              class="text-ink-muted py-10 text-center text-sm"
+            >
+              행동 상세를 불러오는 중이에요.
+            </p>
+            <div
+              v-else-if="transactionsError"
+              class="border-line space-y-3 rounded-2xl border p-4 text-center"
+            >
+              <p class="text-ink-muted text-sm">{{ transactionsError }}</p>
+              <PrimaryButton
+                variant="outline"
+                @click="loadTransactions(selectedId)"
+                >다시 시도</PrimaryButton
               >
             </div>
           </template>
