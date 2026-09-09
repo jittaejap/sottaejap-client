@@ -308,6 +308,54 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).not.toContain('실제 배달')
   })
 
+  it('지도 밖 행동 상세를 불러오는 동안 로딩 상태를 표시한다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    vi.mocked(getBehavior).mockImplementationOnce(() => new Promise<BehaviorDetail>(() => {}))
+    const wrapper = mountMap(await mapRouter('/map/behaviors/999'))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('행동 상세를 불러오는 중이에요.')
+    expect(wrapper.text()).not.toBe('')
+  })
+
+  it('지도 밖 행동 상세 조회 실패 시 오류와 재시도를 제공한다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    vi.mocked(getBehavior)
+      .mockRejectedValueOnce(new ApiError('INTERNAL_ERROR', 500, '서버 문구'))
+      .mockResolvedValueOnce(
+        behaviorDetail({
+          behavior: { ...behaviorDetail().behavior, behaviorId: 999, name: '재시도 행동' },
+        }),
+      )
+    const wrapper = mountMap(await mapRouter('/map/behaviors/999'))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('행동 상세를 불러오지 못했어요. 다시 시도해주세요.')
+    const callsBeforeRetry = vi.mocked(getBehavior).mock.calls.length
+    const retry = wrapper.findAll('button').find((button) => button.text() === '다시 시도')
+    if (!retry) throw new Error('행동 상세 재시도 버튼을 찾지 못했습니다.')
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(getBehavior).toHaveBeenCalledTimes(callsBeforeRetry + 1)
+    expect(wrapper.text()).toContain('재시도 행동')
+  })
+
+  it('지도 조회가 실패해도 행동 딥링크는 행동 API로 상세를 연다', async () => {
+    vi.mocked(getSatisfactionMap).mockRejectedValueOnce(new Error('map offline'))
+    vi.mocked(getBehavior).mockResolvedValueOnce(
+      behaviorDetail({
+        behavior: { ...behaviorDetail().behavior, behaviorId: 999, name: '독립 폴백 행동' },
+      }),
+    )
+    const wrapper = mountMap(await mapRouter('/map/behaviors/999'))
+    await flushPromises()
+
+    expect(getBehavior).toHaveBeenCalledWith(999)
+    expect(wrapper.text()).toContain('독립 폴백 행동')
+    expect(wrapper.text()).not.toContain('만족도 지도를 불러오지 못했어요')
+  })
+
   it('딥링크 상세에서 뒤로가면 지도 URL과 화면을 함께 복원한다', async () => {
     vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
     const router = await mapRouter('/map/behaviors/42')
@@ -320,6 +368,25 @@ describe('만족도 지도 이동', () => {
 
     expect(router.currentRoute.value.name).toBe('map')
     expect(wrapper.text()).toContain('나의 만족도 지도')
+  })
+
+  it('지도 밖 행동 상세에서 뒤로가면 실제 지도 첫 점을 다시 선택한다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
+    vi.mocked(getBehavior).mockResolvedValueOnce(
+      behaviorDetail({
+        behavior: { ...behaviorDetail().behavior, behaviorId: 999, name: '지도 밖 행동' },
+      }),
+    )
+    const router = await mapRouter('/map/behaviors/999')
+    const wrapper = mountMap(router)
+    await flushPromises()
+
+    await wrapper.find('header button').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('map')
+    expect(wrapper.text()).toContain('실제 배달(3)')
+    expect(wrapper.text()).not.toContain('지도 밖 행동')
   })
 
   it('같은 라우트에서 행동 ID만 바뀌어도 새 상세를 불러온다', async () => {
