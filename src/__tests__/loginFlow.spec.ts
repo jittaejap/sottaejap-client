@@ -39,6 +39,7 @@ describe('로그인 사용자 상태', () => {
       authProvider: 'LOCAL',
       monthlyBudget: 2_500_000,
       outlierThreshold: 2,
+      outlierBaseAmount: 100_000,
       retrospectDelayDays: 1,
       onboardingCompleted: true,
       analysisYearMonth: '2026-09',

@@ -89,6 +89,7 @@ export async function getTransactions(params: {
 export async function updateSettings(input: {
   monthlyBudget?: number
   outlierThreshold?: number
+  outlierBaseAmount?: number
   retrospectDelayDays?: number
 }) {
   const response = await httpClient.put<UserMe>('/users/me/settings', input)
