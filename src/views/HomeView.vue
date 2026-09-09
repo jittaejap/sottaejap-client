@@ -3,10 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IconBell,
-  IconBurger,
   IconChevronRight,
-  IconCoffee,
-  IconCar,
   IconMoped,
   IconCrown,
   IconMoodAnnoyed,
@@ -19,13 +16,19 @@ import {
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
-import WeeklyTrendChart from '@/components/common/WeeklyTrendChart.vue'
 import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
 import goalTravelImage from '@/assets/images/onboarding/goal-travel.png'
 import aiBriefingImage from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import savingsImage from '@/assets/images/savings-summary.png'
 import { useMapStore } from '@/stores/map'
-import { getGoals, getMonthlyReport, getNotifications, getSuggestions } from '@/api/service'
+import {
+  getAnalysis,
+  getGoals,
+  getMonthlyReport,
+  getNotifications,
+  getSatisfactionMap,
+  getSuggestions,
+} from '@/api/service'
 import type { Goal, MonthlyReport, Suggestion } from '@/api/types'
 
 const router = useRouter()
@@ -36,6 +39,8 @@ const serverGoal = ref<Goal | null>(null)
 const monthlyReport = ref<MonthlyReport | null>(null)
 const adoptedSuggestions = ref<Suggestion[]>([])
 const unreadCount = ref(0)
+/** `GET /analysis`의 `highlight` (FR-11-03 · E-75). 못 받으면 카드를 숨긴다 — 문장을 짓지 않는다. */
+const analysisHighlight = ref<string | null>(null)
 const goal = computed(() => ({
   label: serverGoal.value?.name ?? '등록된 목표 없음',
   sub: serverGoal.value ? `${serverGoal.value.name} 마련` : '목표 자금 마련',
@@ -75,18 +80,47 @@ const savingsSummary = computed(() => {
 })
 
 onMounted(async () => {
-  const [goalsResult, reportResult, suggestionsResult, notificationsResult] =
-    await Promise.allSettled([
-      getGoals(),
-      getMonthlyReport(),
-      getSuggestions('ADOPTED'),
-      getNotifications(),
-    ])
+  const [
+    goalsResult,
+    reportResult,
+    suggestionsResult,
+    notificationsResult,
+    analysisResult,
+    mapResult,
+  ] = await Promise.allSettled([
+    getGoals(),
+    getMonthlyReport(),
+    getSuggestions('ADOPTED'),
+    getNotifications(),
+    getAnalysis(),
+    getSatisfactionMap(),
+  ])
   if (goalsResult.status === 'fulfilled') serverGoal.value = goalsResult.value[0] ?? null
   if (reportResult.status === 'fulfilled') monthlyReport.value = reportResult.value
   if (suggestionsResult.status === 'fulfilled') adoptedSuggestions.value = suggestionsResult.value
   if (notificationsResult.status === 'fulfilled')
     unreadCount.value = notificationsResult.value.unreadCount
+  if (analysisResult.status === 'fulfilled')
+    analysisHighlight.value = analysisResult.value.highlight.trim() || null
+  if (mapResult.status === 'fulfilled') mapStore.data = mapResult.value
+})
+
+/** 03 `3-1` 3. 보조 지표 — `3-2 반복 횟수 변화` (FR-08-07). 전월이 없으면 이번 달 값만 말한다. */
+const repeatChange = computed(() => {
+  const report = monthlyReport.value
+  if (report === null) return null
+
+  const current = report.repeatCount
+  const previous = report.previousRepeatCount
+  if (previous === null) return { current, previous, deltaLabel: null, decreased: false }
+
+  const delta = current - previous
+  return {
+    current,
+    previous,
+    deltaLabel: delta === 0 ? '변화 없음' : `${Math.abs(delta)}회 ${delta < 0 ? '감소' : '증가'}`,
+    decreased: delta < 0,
+  }
 })
 
 const savingsActions = computed(() =>
@@ -98,20 +132,9 @@ const savingsActions = computed(() =>
   })),
 )
 
-const weeklyTrend = [19_000, 24_000, 17_000, 31_000, 28_000, 35_000, 46_000]
-const weeklyLabels = ['3월', '4월', '5월', '6월', '7월', '8월', '9월']
-const topCategories = [
-  { label: '외식/배달', amount: 21_000, icon: IconBurger },
-  { label: '카페/간식', amount: 13_000, icon: IconCoffee },
-  { label: '교통', amount: 12_000, icon: IconCar },
-]
-
 const quadrantCounts = computed(() => {
-  const points = mapStore.data?.points
   const counts = { PROTECT: 0, KEEP: 0, MINOR: 0, PRIORITY: 0 }
-  if (points === undefined || points.length === 0)
-    return { PROTECT: 1, KEEP: 2, MINOR: 1, PRIORITY: 2 }
-  for (const point of points) {
+  for (const point of mapStore.data?.points ?? []) {
     if (point.evaluationStatus === 'RESOLVED' && point.quadrant !== null)
       counts[point.quadrant] += 1
   }
@@ -276,22 +299,39 @@ function openBehavior(behaviorId: number) {
               <button
                 type="button"
                 class="border-line bg-surface flex h-[126px] flex-col items-start gap-1.5 rounded-[20px] border p-4 text-left"
-                @click="openBehavior(6)"
+                @click="subview = 'savings'"
               >
                 <span class="flex w-full items-center justify-between">
-                  <span class="text-ink-faint text-[13px] font-medium">행동 변화</span>
+                  <span class="text-ink-faint text-[13px] font-medium">반복 횟수 변화</span>
                   <span
                     class="bg-progress-track text-ink-faint rounded-md px-1.5 py-0.5 text-[10px]"
                     >이번 달 기준</span
                   >
                 </span>
-                <span class="text-ink text-[13px] font-medium">심야 배달</span>
-                <span class="text-ink text-xl font-bold">4회 → 2회</span>
-                <span class="text-brand text-xs font-bold">-50% 감소</span>
+                <span
+                  v-if="repeatChange === null"
+                  class="text-ink text-xl font-bold"
+                  >데이터 없음</span
+                >
+                <template v-else-if="repeatChange.deltaLabel === null">
+                  <span class="text-ink text-xl font-bold">{{ repeatChange.current }}회</span>
+                  <span class="text-ink-faint text-xs font-medium">전월 데이터 없음</span>
+                </template>
+                <template v-else>
+                  <span class="text-ink text-xl font-bold"
+                    >{{ repeatChange.previous }}회 → {{ repeatChange.current }}회</span
+                  >
+                  <span
+                    class="text-xs font-bold"
+                    :class="repeatChange.decreased ? 'text-brand' : 'text-ink-faint'"
+                    >{{ repeatChange.deltaLabel }}</span
+                  >
+                </template>
               </button>
             </div>
 
             <button
+              v-if="analysisHighlight !== null"
               type="button"
               class="border-brand bg-brand-soft flex min-h-[122px] w-full items-center rounded-[20px] border p-4 text-left"
               @click="router.push('/chat')"
@@ -304,9 +344,9 @@ function openBehavior(behaviorId: number) {
                   />
                   AI 브리핑</span
                 >
-                <span class="text-ink-muted text-sm font-bold leading-5"
-                  >심야 배달을 줄인 덕분에 식비가<br />18% 줄었어요! 👍</span
-                >
+                <span class="text-ink-muted text-sm leading-5 font-bold">{{
+                  analysisHighlight
+                }}</span>
                 <span class="text-ink-faint text-[10px] font-medium">자세히 보기 &gt;</span>
               </span>
               <img
@@ -316,7 +356,10 @@ function openBehavior(behaviorId: number) {
               />
             </button>
 
-            <section class="border-line bg-surface flex flex-col gap-3 rounded-[20px] border p-4">
+            <section
+              v-if="mapStore.data !== null"
+              class="border-line bg-surface flex flex-col gap-3 rounded-[20px] border p-4"
+            >
               <div class="flex items-center justify-between">
                 <h2 class="text-ink text-[13px] font-bold">만족도 지도 미리보기</h2>
                 <button
@@ -327,7 +370,16 @@ function openBehavior(behaviorId: number) {
                   전체 보기 &gt;
                 </button>
               </div>
-              <div class="grid grid-cols-2 gap-2.5">
+              <p
+                v-if="mapStore.data.points.length === 0"
+                class="text-ink-muted py-2 text-center text-xs"
+              >
+                아직 지도에 그릴 회고가 없어요.
+              </p>
+              <div
+                v-else
+                class="grid grid-cols-2 gap-2.5"
+              >
                 <button
                   v-for="q in satisfactionPreview"
                   :key="q.key"
@@ -470,45 +522,29 @@ function openBehavior(behaviorId: number) {
               </div>
             </AppCard>
 
-            <AppCard>
-              <p class="text-ink text-sm font-semibold">월별 절감액 추이</p>
-              <WeeklyTrendChart
-                :values="weeklyTrend"
-                :labels="weeklyLabels"
-              />
+            <AppCard v-if="monthlyReport !== null">
+              <p class="text-ink text-sm font-semibold">보조 지표</p>
+              <dl class="mt-2.5 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                  <dt class="text-ink-muted text-[13px]">아쉬운 소비 건수</dt>
+                  <dd class="text-ink text-[13px] font-semibold">
+                    {{ monthlyReport.unsatisfiedCount }}건
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="text-ink-muted text-[13px]">반복 횟수</dt>
+                  <dd class="text-ink text-[13px] font-semibold">
+                    <template v-if="repeatChange?.deltaLabel == null">
+                      {{ monthlyReport.repeatCount }}회 · 전월 데이터 없음
+                    </template>
+                    <template v-else>
+                      {{ repeatChange.previous }}회 → {{ repeatChange.current }}회 ·
+                      {{ repeatChange.deltaLabel }}
+                    </template>
+                  </dd>
+                </div>
+              </dl>
             </AppCard>
-
-            <div>
-              <p class="text-ink mb-2 text-sm font-semibold">절감 카테고리 TOP 3</p>
-              <div class="divide-line border-line divide-y rounded-2xl border">
-                <button
-                  v-for="c in topCategories"
-                  :key="c.label"
-                  type="button"
-                  class="flex w-full items-center justify-between px-4 py-3.5"
-                >
-                  <span class="flex items-center gap-3">
-                    <span class="bg-brand-soft flex size-8 items-center justify-center rounded-lg">
-                      <component
-                        :is="c.icon"
-                        :size="18"
-                        class="text-brand"
-                      />
-                    </span>
-                    <span class="text-ink text-sm font-bold">{{ c.label }}</span>
-                  </span>
-                  <span class="flex items-center gap-1">
-                    <span class="text-ink text-sm font-bold"
-                      >{{ c.amount.toLocaleString('ko-KR') }}원</span
-                    >
-                    <IconChevronRight
-                      :size="15"
-                      class="text-ink-muted"
-                    />
-                  </span>
-                </button>
-              </div>
-            </div>
           </template>
         </div>
       </Transition>
