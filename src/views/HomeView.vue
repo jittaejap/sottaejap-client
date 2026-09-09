@@ -30,6 +30,7 @@ import {
   getGoals,
   getMonthlyReport,
   getNotifications,
+  getSatisfactionMap,
   getSuggestions,
 } from '@/api/service'
 import type { Goal, MonthlyReport, Suggestion } from '@/api/types'
@@ -83,14 +84,21 @@ const savingsSummary = computed(() => {
 })
 
 onMounted(async () => {
-  const [goalsResult, reportResult, suggestionsResult, notificationsResult, analysisResult] =
-    await Promise.allSettled([
-      getGoals(),
-      getMonthlyReport(),
-      getSuggestions('ADOPTED'),
-      getNotifications(),
-      getAnalysis(),
-    ])
+  const [
+    goalsResult,
+    reportResult,
+    suggestionsResult,
+    notificationsResult,
+    analysisResult,
+    mapResult,
+  ] = await Promise.allSettled([
+    getGoals(),
+    getMonthlyReport(),
+    getSuggestions('ADOPTED'),
+    getNotifications(),
+    getAnalysis(),
+    getSatisfactionMap(),
+  ])
   if (goalsResult.status === 'fulfilled') serverGoal.value = goalsResult.value[0] ?? null
   if (reportResult.status === 'fulfilled') monthlyReport.value = reportResult.value
   if (suggestionsResult.status === 'fulfilled') adoptedSuggestions.value = suggestionsResult.value
@@ -98,6 +106,7 @@ onMounted(async () => {
     unreadCount.value = notificationsResult.value.unreadCount
   if (analysisResult.status === 'fulfilled')
     analysisHighlight.value = analysisResult.value.highlight.trim() || null
+  if (mapResult.status === 'fulfilled') mapStore.data = mapResult.value
 })
 
 /** 03 `3-1` 3. 보조 지표 — `3-2 반복 횟수 변화` (FR-08-07). 전월이 없으면 이번 달 값만 말한다. */
@@ -136,11 +145,8 @@ const topCategories = [
 ]
 
 const quadrantCounts = computed(() => {
-  const points = mapStore.data?.points
   const counts = { PROTECT: 0, KEEP: 0, MINOR: 0, PRIORITY: 0 }
-  if (points === undefined || points.length === 0)
-    return { PROTECT: 1, KEEP: 2, MINOR: 1, PRIORITY: 2 }
-  for (const point of points) {
+  for (const point of mapStore.data?.points ?? []) {
     if (point.evaluationStatus === 'RESOLVED' && point.quadrant !== null)
       counts[point.quadrant] += 1
   }
@@ -362,7 +368,10 @@ function openBehavior(behaviorId: number) {
               />
             </button>
 
-            <section class="border-line bg-surface flex flex-col gap-3 rounded-[20px] border p-4">
+            <section
+              v-if="mapStore.data !== null"
+              class="border-line bg-surface flex flex-col gap-3 rounded-[20px] border p-4"
+            >
               <div class="flex items-center justify-between">
                 <h2 class="text-ink text-[13px] font-bold">만족도 지도 미리보기</h2>
                 <button
@@ -373,7 +382,16 @@ function openBehavior(behaviorId: number) {
                   전체 보기 &gt;
                 </button>
               </div>
-              <div class="grid grid-cols-2 gap-2.5">
+              <p
+                v-if="mapStore.data.points.length === 0"
+                class="text-ink-muted py-2 text-center text-xs"
+              >
+                아직 지도에 그릴 회고가 없어요.
+              </p>
+              <div
+                v-else
+                class="grid grid-cols-2 gap-2.5"
+              >
                 <button
                   v-for="q in satisfactionPreview"
                   :key="q.key"
