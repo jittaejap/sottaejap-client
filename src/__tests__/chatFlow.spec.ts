@@ -9,11 +9,12 @@ import { ApiError } from '@/api/apiError'
 import {
   adoptSuggestion,
   chatRetrospect,
+  getAnalysis,
   getRetrospectCandidates,
   getSuggestions,
   saveRetrospect,
 } from '@/api/service'
-import type { RetrospectCandidate, RetrospectChatResult } from '@/api/types'
+import type { Analysis, RetrospectCandidate, RetrospectChatResult } from '@/api/types'
 
 const CANDIDATE: RetrospectCandidate = {
   transactionId: 1043,
@@ -37,6 +38,55 @@ const SECOND_CANDIDATE: RetrospectCandidate = {
   reason: '설정한 임계값을 넘은 지출이에요.',
 }
 
+/**
+ * 05 §2 `GET /analysis` — 회고가 0건인 계정. `byCategory`는 비지만
+ * `byVerdict`는 해당 묶음이 없어도 항상 `SUSTAIN` · `ADJUST` 2행이다 (E-73).
+ */
+const EMPTY_ANALYSIS: Analysis = {
+  analysisYearMonth: '2026-09',
+  byVerdict: [
+    { verdict: 'SUSTAIN', clusterCount: 0, monthlyTotalAmount: 0, share: 0 },
+    { verdict: 'ADJUST', clusterCount: 0, monthlyTotalAmount: 0, share: 0 },
+  ],
+  pending: { clusterCount: 0, monthlyTotalAmount: 0, share: 0 },
+  byCategory: [],
+  highlight: '아직 돌아본 소비가 없어요. 몇 건만 회고하면 분석을 보여드릴 수 있어요.',
+}
+
+/** 묶음이 쌓인 계정. 예산을 넣지 않아 `share`가 `null`이다 (05 §2 E-73). */
+const ANALYSIS_WITHOUT_BUDGET: Analysis = {
+  analysisYearMonth: '2026-09',
+  byVerdict: [
+    { verdict: 'SUSTAIN', clusterCount: 5, monthlyTotalAmount: 430_000, share: null },
+    { verdict: 'ADJUST', clusterCount: 3, monthlyTotalAmount: 210_000, share: null },
+  ],
+  pending: { clusterCount: 7, monthlyTotalAmount: 180_000, share: null },
+  byCategory: [
+    {
+      category: '배달',
+      dominantTimeSlot: 'NIGHT',
+      avgAmount: 12_000,
+      monthlyTotalAmount: 96_000,
+      verdict: 'ADJUST',
+    },
+    {
+      category: '카페',
+      dominantTimeSlot: 'DAY',
+      avgAmount: 6_200,
+      monthlyTotalAmount: 62_000,
+      verdict: 'SUSTAIN',
+    },
+    {
+      category: '편의점',
+      dominantTimeSlot: null,
+      avgAmount: 4_100,
+      monthlyTotalAmount: 41_000,
+      verdict: null,
+    },
+  ],
+  highlight: '배달은 대부분 심야에 몰려 있어요.',
+}
+
 /** 05 §2 #11 — `INTRO` 응답. 서버는 다음 단계로 `SATISFACTION`을 준다. */
 const INTRO_REPLY: RetrospectChatResult = {
   reply: '지난 밤 11시 배달, 23,000원이었어요. 어떤 마음으로 시키셨나요?',
@@ -51,13 +101,7 @@ vi.mock('@/api/service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/service')>()),
   getSuggestions: vi.fn().mockResolvedValue([]),
   getGoals: vi.fn().mockResolvedValue([]),
-  getAnalysis: vi.fn().mockResolvedValue({
-    analysisYearMonth: '2026-09',
-    byVerdict: [],
-    pending: { clusterCount: 0, monthlyTotalAmount: 0, share: 0 },
-    byCategory: [],
-    highlight: '이번 달 소비 패턴을 분석했어요. 요약해드릴게요.',
-  }),
+  getAnalysis: vi.fn(),
   adoptSuggestion: vi.fn().mockResolvedValue({}),
   rejectSuggestionById: vi.fn().mockResolvedValue({}),
   askFinance: vi.fn().mockResolvedValue({ reply: '금융 Q&A 테스트 답변', fallback: false }),
@@ -67,6 +111,7 @@ vi.mock('@/api/service', async (importOriginal) => ({
 }))
 
 beforeEach(() => {
+  vi.mocked(getAnalysis).mockReset().mockResolvedValue(EMPTY_ANALYSIS)
   vi.mocked(getRetrospectCandidates).mockReset().mockResolvedValue([CANDIDATE, SECOND_CANDIDATE])
   vi.mocked(chatRetrospect).mockReset().mockResolvedValue(INTRO_REPLY)
   vi.mocked(saveRetrospect).mockReset().mockResolvedValue({})
@@ -208,16 +253,17 @@ describe('AI채팅 회고 흐름', () => {
     expect(text).toContain('이 소비의 목적은 무엇이었나요?')
   })
 
-  it('회고를 마치면 절감액과 목표 영향이 합쳐진 액션 플랜이 나온다', async () => {
+  // 절감액 산식은 제안이 있는 첫 케이스가 확인한다 — 여기서는 제안이 없을 때를 본다 (#48).
+  it('제안도 목표도 없으면 절감액과 달성률을 그리지 않는다 (#48)', async () => {
     const { wrapper } = await mountChat()
 
     await runRetrospect(wrapper)
     expect(wrapper.text()).toContain('AI가 분석한 최적의 추천 빈도')
-    expect(wrapper.text()).toContain('월 43,400원')
+    expect(wrapper.text()).toContain('제안 없음')
     expect(wrapper.text()).toContain('등록된 목표가 없어 제안만 채택돼요')
-
-    await click(wrapper, '추천 빈도 줄이기')
-    expect(wrapper.text()).toContain('월 65,100원')
+    // 가짜 목표(여행 자금 · 비상금 · 자유 자금)가 선택지로 뜨면 안 된다.
+    expect(wrapper.text()).not.toContain('여행 자금')
+    expect(wrapper.text()).not.toContain('달성률')
   })
 
   it('도움말을 누르면 제안 근거가 펼쳐지고 다시 누르면 접힌다', async () => {
@@ -241,7 +287,7 @@ describe('AI채팅 회고 흐름', () => {
     await runRetrospect(wrapper)
     await click(wrapper, '제안 거절하기')
 
-    expect(wrapper.text()).toContain('AI가 분석한 당신의')
+    expect(wrapper.text()).toContain('판정 라벨별 요약')
     expect(wrapper.text()).toContain('제안을 거절할게요')
   })
 
@@ -253,13 +299,13 @@ describe('AI채팅 회고 흐름', () => {
     expect(wrapper.text()).toContain('배달의민족 23,000원 회고할게요')
 
     await click(wrapper, '소비 분석')
-    expect(wrapper.text()).toContain('이번 달 소비 패턴을 분석했어요')
+    expect(wrapper.text()).toContain('아직 돌아본 소비가 없어요')
     expect(wrapper.text()).not.toContain('배달의민족 23,000원 회고할게요')
 
     await click(wrapper, '금융 Q&A')
     await click(wrapper, '예금과 적금의 차이가 뭔가요?')
     expect(wrapper.text()).toContain('예금과 적금의 차이가 뭔가요?')
-    expect(wrapper.text()).not.toContain('이번 달 소비 패턴을 분석했어요')
+    expect(wrapper.text()).not.toContain('아직 돌아본 소비가 없어요')
 
     await click(wrapper, '회고 등록')
     expect(wrapper.text()).toContain('배달의민족 23,000원 회고할게요')
@@ -302,6 +348,45 @@ describe('AI채팅 회고 흐름', () => {
     expect(wrapper.text()).toContain('지금은 돌아볼 거래가 없어요')
   })
 
+  it('byCategory가 비면 카테고리 목록 없이 highlight 안내와 라벨별 요약만 보인다 (#48)', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+
+    const text = wrapper.text()
+    expect(text).toContain('아직 돌아본 소비가 없어요')
+    expect(text).toContain('판정 라벨별 요약')
+    expect(text).toContain('지켜요')
+    expect(text).toContain('바꿔볼까요')
+    expect(text).toContain('보류')
+    // 03 W-7 — 프로필 3유형과 가짜 행동 4건은 지웠다.
+    expect(text).not.toContain('가치 중심 소비')
+    expect(text).not.toContain('친구와 외식')
+    expect(text).not.toContain('심야 배달')
+    expect(text).not.toContain('카테고리별 요약')
+  })
+
+  it('카테고리 배지는 판정 2종과 보류이고 share가 null이면 비중을 그리지 않는다 (#48)', async () => {
+    vi.mocked(getAnalysis).mockResolvedValue(ANALYSIS_WITHOUT_BUDGET)
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+
+    const text = wrapper.text()
+    expect(text).toContain('5개 묶음')
+    expect(text).toContain('430,000원')
+    expect(text).toContain('7개 묶음')
+    // 예산이 없어 share가 null이다 — 비중을 그리지 않는다 (E-73).
+    expect(text).not.toContain('예산의')
+
+    expect(text).toContain('카테고리별 요약')
+    expect(text).toContain('배달')
+    expect(text).toContain('이번 달 96,000원을 사용했어요')
+    // 처방 5종은 지도 상세 패널 전용이다 (01 E-4 · E-76).
+    for (const prescription of ['Great!', 'Awesome!!', 'Umm...', 'Hmm...!'])
+      expect(text).not.toContain(prescription)
+  })
+
   it('소비 분석 결과와 안내 뒤에 후속 질문과 응답을 시간순으로 표시한다', async () => {
     const { wrapper } = await mountChat()
 
@@ -309,8 +394,8 @@ describe('AI채팅 회고 흐름', () => {
     await type(wrapper, '비상금은 얼마나 모아야 하나요?')
 
     const text = wrapper.text()
-    const introIndex = text.indexOf('이번 달 소비 패턴을 분석했어요')
-    const analysisIndex = text.indexOf('AI가 분석한 당신의')
+    const introIndex = text.indexOf('아직 돌아본 소비가 없어요')
+    const analysisIndex = text.indexOf('판정 라벨별 요약')
     const guideIndex = text.indexOf('금융에 대해 궁금한 게 있다면')
     const questionIndex = text.indexOf('비상금은 얼마나 모아야 하나요?')
     const replyIndex = text.indexOf('소비 분석에 대한 질문을 확인했어요')
