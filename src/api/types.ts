@@ -1,9 +1,13 @@
 import type {
   AuthProvider,
+  CompanionTag,
   EvaluationStatus,
   NotificationType,
+  PurposeTag,
   Quadrant,
   ReasonCode,
+  ReflectionStep,
+  Satisfaction,
   SuggestionStatus,
   TimeSlot,
   Verdict,
@@ -167,4 +171,35 @@ export interface SatisfactionMap {
   /** 미결 #18 — null이면 축 경계선을 그리지 않는다 */
   boundaries: { x: number | null; y: number | null }
   points: SatisfactionMapPoint[]
+}
+
+/**
+ * `POST /retrospects/chat` (05 §2 #11 · 01 E-63) — 지금까지 **사용자가 확인한** 값이다.
+ * AI 후보값은 칩을 미리 눌러 두는 데만 쓰고, 사용자가 확정해야 여기에 실린다 (E-20 · FR-04-07).
+ * `satisfaction`의 미확정 표기는 05 요청 예시대로 `UNKNOWN`이다 — 서버는 이 값을 보고 다음 단계를 정한다.
+ */
+export interface RetrospectReflection {
+  satisfaction: Satisfaction
+  purpose: PurposeTag | null
+  companion: CompanionTag | null
+  repeatIntent: boolean | null
+}
+
+/**
+ * `recentMessages` 한 건 (01 E-87 · E-109 · E-110).
+ * 오름차순으로 싣고 마지막 6건만 보낸다. `content`는 공백이 아니어야 하고
+ * `user` 500자 · `assistant` 2,000자를 넘으면 400 `INVALID_INPUT`이다.
+ */
+export interface RetrospectChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface RetrospectChatResult {
+  reply: string
+  step: ReflectionStep
+  reflection: RetrospectReflection
+  needsClarification: boolean
+  uncertainFields: string[]
+  fallback: boolean
 }

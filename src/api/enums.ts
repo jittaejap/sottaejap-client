@@ -57,3 +57,18 @@ export type PurposeTag = (typeof PURPOSE_TAG)[number]
 
 export const COMPANION_TAG = ['혼자', '친구', '가족', '연인', '동료', '기타'] as const
 export type CompanionTag = (typeof COMPANION_TAG)[number]
+
+/**
+ * 회고 대화 단계 (05 §0 `reflectionStep` · 01 E-69).
+ * **화면이 소유한다** — 지금 어떤 질문을 띄웠는지는 클라이언트가 안다.
+ * `INTRO`는 사용자 입력이 없는 턴이라 `message`를 생략한다.
+ */
+export const REFLECTION_STEP = [
+  'INTRO',
+  'SATISFACTION',
+  'PURPOSE',
+  'COMPANION',
+  'REPEAT',
+  'CONFIRM',
+] as const
+export type ReflectionStep = (typeof REFLECTION_STEP)[number]

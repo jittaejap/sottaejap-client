@@ -9,6 +9,7 @@ import {
   IconChartPie,
   IconCheck,
   IconChevronDown,
+  IconAlertTriangle,
   IconChevronRight,
   IconChevronUp,
   IconClock,
@@ -36,7 +37,9 @@ import {
   PURPOSE_OPTIONS,
   REPEAT_OPTIONS,
   SATISFACTION_OPTIONS,
+  type TagOption,
   tagLabels,
+  tagValue,
 } from '@/components/chat/tagOptions'
 import aiAvatarImage from '@/assets/images/ai/01_main_wave_hat.png'
 import aiSmallAvatarImage from '@/assets/images/ai/02_wave_small_hat.png'
@@ -53,12 +56,22 @@ import { ApiError } from '@/api/apiError'
 import {
   adoptSuggestion,
   askFinance,
+  chatRetrospect,
   getAnalysis,
   getGoals,
+  getRetrospectCandidates,
   getSuggestions,
   rejectSuggestionById,
+  saveRetrospect,
 } from '@/api/service'
-import type { Analysis, Goal, Suggestion } from '@/api/types'
+import type { ReflectionStep } from '@/api/enums'
+import type {
+  Analysis,
+  Goal,
+  RetrospectChatMessage,
+  RetrospectChatResult,
+  Suggestion,
+} from '@/api/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -99,6 +112,19 @@ function say(role: 'ai' | 'user', text: string, avatar?: string) {
   })
 }
 
+/**
+ * `say`와 `step`은 **부를 때의** 활성 채널에 쓴다.
+ * 서버를 기다리는 사이 사용자가 다른 채널로 옮기면 회고 응답이 그 채널에 꽂히므로,
+ * `await`를 건넌 뒤의 회고 발화와 단계는 이 두 함수로 회고 채널에 못 박는다.
+ */
+function sayRetrospect(text: string, avatar?: string) {
+  chatStore.addMessage('retrospect', { role: 'ai', text, avatar })
+}
+
+function setRetrospectStep(next: ChatStep) {
+  chatStore.steps.retrospect = next
+}
+
 watch(
   [history, step],
   () => {
@@ -109,74 +135,117 @@ watch(
   { deep: true },
 )
 
-const candidates = [
-  {
-    id: 1,
-    merchant: '배달의민족',
-    amount: 23_000,
-    category: '식비 · 배달',
-    when: '금요일 23:12',
-    night: true,
-  },
-  {
-    id: 2,
-    merchant: '요기요',
-    amount: 19_500,
-    category: '식비 · 배달',
-    when: '금요일 21:03',
-    night: false,
-  },
-  {
-    id: 3,
-    merchant: '스타벅스',
-    amount: 6_200,
-    category: '식비 · 카페',
-    when: '금요일 16:45',
-    night: false,
-  },
-  {
-    id: 4,
-    merchant: 'GS25',
-    amount: 4_500,
-    category: '식비 · 편의점',
-    when: '목요일 23:19',
-    night: true,
-  },
-  {
-    id: 5,
-    merchant: '교촌치킨',
-    amount: 21_000,
-    category: '식비 · 배달',
-    when: '목요일 21:55',
-    night: false,
-  },
-  {
-    id: 6,
-    merchant: 'CU',
-    amount: 3_200,
-    category: '식비 · 편의점',
-    when: '목요일 20:10',
-    night: false,
-  },
-]
+/** 채팅 회고 진입은 오늘 포함 최근 3일이다 — 05 §2 `rules.chat-window-days` = 3 (01 E-48). 기준 시간대는 KST다. */
+const CHAT_WINDOW_DAYS = 3
+/** 3일 창의 후보를 한 번에 받는다. 05 §2 `limit` 상한은 100이다. */
+const CANDIDATE_LIMIT = 20
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000
 
-const selected = ref(candidates[0]!)
+/** 브라우저 시간대와 무관하게 KST 달력 날짜(`YYYY-MM-DD`)를 얻는다. */
+function kstDateIso(daysAgo: number) {
+  const shifted = new Date(Date.now() + KST_OFFSET_MS - daysAgo * 24 * 60 * 60 * 1000)
+  return shifted.toISOString().slice(0, 10)
+}
+
+/**
+ * 서버 시각은 ISO 8601 오프셋 문자열이다 (AGENTS.md).
+ * 숫자 배열처럼 다른 모양으로 오면 서버 버그이므로 파싱으로 덮지 않고 받은 값을 그대로 보여 준다.
+ */
+function formatOccurredAt(occurredAt: string) {
+  const parsed = new Date(occurredAt)
+  if (Number.isNaN(parsed.getTime())) return String(occurredAt)
+  return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'short' }).format(parsed)
+}
+
+const candidates = computed(() => chatStore.candidates)
+const selected = computed(() => chatStore.selectedCandidate)
 const search = ref('')
 const nightOnly = ref(false)
-const pickedId = ref(candidates[0]!.id)
+const pickedId = ref<number | null>(null)
 
 const filtered = computed(() =>
-  candidates.filter((c) => {
+  candidates.value.filter((c) => {
     const matchesText =
       search.value === '' || c.merchant.includes(search.value) || c.category.includes(search.value)
-    return matchesText && (!nightOnly.value || c.night)
+    return matchesText && (!nightOnly.value || c.timeSlot === 'NIGHT')
   }),
 )
+
+/** 05 §0 `reflectionStep` 6종과 화면 단계의 1:1 매핑 (01 E-69). */
+const CHAT_STEP_BY_REFLECTION_STEP: Record<ReflectionStep, ChatStep> = {
+  INTRO: 'candidate',
+  SATISFACTION: 'qaSatisfaction',
+  PURPOSE: 'qaPurpose',
+  COMPANION: 'qaCompanion',
+  REPEAT: 'qaRepeat',
+  CONFIRM: 'wrapup',
+}
+
+/** 위 매핑 하나만 보고 되돌린다 — 표를 둘로 나누면 언젠가 어긋난다. */
+function reflectionStepOf(chatStep: ChatStep): ReflectionStep {
+  const found = (Object.keys(CHAT_STEP_BY_REFLECTION_STEP) as ReflectionStep[]).find(
+    (key) => CHAT_STEP_BY_REFLECTION_STEP[key] === chatStep,
+  )
+  return found ?? 'INTRO'
+}
+
+/** 서버는 최근 6건만 AI에 전달한다 (01 E-87). */
+const RECENT_MESSAGE_LIMIT = 6
+/** `content` 상한. 길이는 **코드 포인트**로 센다 (01 E-110). */
+const CONTENT_LIMIT = { user: 500, assistant: 2_000 } as const
+
+/**
+ * 05 §2 #11 `recentMessages` — 오름차순(오래된 → 최신) · 보내기 전 마지막 6건.
+ * `ai`는 `assistant`로 바꾸고 빈 내용은 뺀다. 어기면 400 `INVALID_INPUT`이고 서버는 AI를 부르지 않는다.
+ * 지금 회고 중인 거래의 대화만 싣는다 — 서버는 이 이력으로 `task_context`를 만든다.
+ */
+function recentMessages(): RetrospectChatMessage[] {
+  return chatStore.histories.retrospect
+    .slice(chatStore.retrospectHistoryStart)
+    .map((entry) => {
+      const role = entry.role === 'ai' ? ('assistant' as const) : ('user' as const)
+      return { role, content: [...entry.text.trim()].slice(0, CONTENT_LIMIT[role]).join('') }
+    })
+    .filter((message) => message.content.length > 0)
+    .slice(-RECENT_MESSAGE_LIMIT)
+}
 
 const purposeOptions = tagLabels(PURPOSE_OPTIONS)
 const companionOptions = tagLabels(COMPANION_OPTIONS)
 const satisfactionOptions = tagLabels(SATISFACTION_OPTIONS)
 const repeatOptions = tagLabels(REPEAT_OPTIONS)
+
+function labelOf<V>(options: readonly TagOption<V>[], value: V) {
+  return options.find((option) => option.value === value)?.label
+}
+
+/**
+ * 이번 단계에서 미리 눌러 둘 칩.
+ * 서버는 AI가 못 뽑은 항목에 요청의 확정값을 그대로 돌려주므로(05 §2 #11),
+ * 이미 확정한 값과 다를 때만 후보로 본다.
+ */
+const suggestedLabel = computed(() => {
+  const suggestion = chatStore.suggestedReflection
+  if (!suggestion) return undefined
+  const confirmed = chatStore.reflection
+  if (step.value === 'qaSatisfaction')
+    return suggestion.satisfaction === confirmed.satisfaction
+      ? undefined
+      : labelOf(SATISFACTION_OPTIONS, suggestion.satisfaction)
+  if (step.value === 'qaPurpose')
+    return suggestion.purpose === null || suggestion.purpose === confirmed.purpose
+      ? undefined
+      : labelOf(PURPOSE_OPTIONS, suggestion.purpose)
+  if (step.value === 'qaCompanion')
+    return suggestion.companion === null || suggestion.companion === confirmed.companion
+      ? undefined
+      : labelOf(COMPANION_OPTIONS, suggestion.companion)
+  if (step.value === 'qaRepeat')
+    return suggestion.repeatIntent === null || suggestion.repeatIntent === confirmed.repeatIntent
+      ? undefined
+      : labelOf(REPEAT_OPTIONS, suggestion.repeatIntent)
+  return undefined
+})
 
 const activeSuggestion = ref<Suggestion | null>(null)
 const serverGoals = ref<Goal[]>([])
@@ -316,11 +385,33 @@ const behaviorSummary = computed(() => {
     }
   })
 })
-function startRetrospect() {
+async function startRetrospect() {
   chatStore.activate('retrospect')
-  if (chatStore.steps.retrospect !== 'menu') return
+  if (chatStore.steps.retrospect !== 'menu' || requestPending.value) return
   say('user', '회고를 등록하고 싶어요!')
-  step.value = 'candidate'
+  requestPending.value = true
+  try {
+    chatStore.candidates = await getRetrospectCandidates(CANDIDATE_LIMIT, {
+      from: kstDateIso(CHAT_WINDOW_DAYS - 1),
+      to: kstDateIso(0),
+    })
+  } catch (error) {
+    sayRetrospect(
+      await apiErrorMessage(error, '회고 후보를 불러오지 못했어요. 잠시 후 다시 시도해주세요.'),
+    )
+    return
+  } finally {
+    requestPending.value = false
+  }
+  const first = chatStore.candidates[0]
+  // 후보가 없으면 03 S10 빈 상태다. 후보 제외는 저장하지 않는다 (01 E-49).
+  if (!first) {
+    setRetrospectStep('empty')
+    return
+  }
+  chatStore.selectedCandidate = first
+  pickedId.value = first.transactionId
+  setRetrospectStep('candidate')
 }
 
 async function loadImprovement() {
@@ -375,7 +466,7 @@ function startQna() {
 }
 
 async function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
-  if (key === 'retrospect') startRetrospect()
+  if (key === 'retrospect') await startRetrospect()
   else if (key === 'analysis') await startAnalysis()
   else startQna()
 }
@@ -383,10 +474,13 @@ async function onShortcut(key: 'retrospect' | 'analysis' | 'qna') {
 async function onSend(text: string) {
   const message = text.trim()
   if (requestPending.value) return
+  // 05 §2 #11 · #24의 상한은 서버 `@Size`와 같은 UTF-16 단위다 (01 E-112).
   if (message.length === 0 || message.length > 500) {
-    say('ai', '질문은 공백 없이 500자 이내로 입력해 주세요.')
+    say('ai', '메시지는 공백 없이 500자 이내로 입력해 주세요.')
     return
   }
+  // 방금 보낼 메시지는 이력에서 빼야 하므로 대화에 쌓기 전에 먼저 모은다.
+  const recent = recentMessages()
   say('user', message)
   if (activeMode.value === 'qna') {
     requestPending.value = true
@@ -412,13 +506,73 @@ async function onSend(text: string) {
   } else if (activeMode.value === 'analysis') {
     say('ai', '소비 분석에 대한 질문을 확인했어요. 현재 분석 맥락에서 이어서 살펴볼게요.')
   } else {
-    say('ai', '회고 내용을 확인했어요. 현재 거래에 대한 회고로 이어서 기록할게요.')
+    const candidate = chatStore.selectedCandidate
+    if (!candidate) {
+      say('ai', '먼저 회고할 거래를 골라 주세요.')
+      return
+    }
+    requestPending.value = true
+    try {
+      applyChatResult(
+        await chatRetrospect({
+          transactionId: candidate.transactionId,
+          message,
+          step: reflectionStepOf(step.value),
+          reflection: chatStore.reflection,
+          recentMessages: recent,
+        }),
+        thinkingAvatar,
+      )
+    } catch (error) {
+      await handleRetrospectChatError(error)
+    } finally {
+      requestPending.value = false
+    }
   }
+}
+
+/**
+ * 05 §2 #11 응답을 화면에 반영한다.
+ * `step`은 서버가 계산한 다음 단계를 그대로 따르고, `reflection`은 확정하지 않은 AI 후보값이다.
+ */
+function applyChatResult(result: RetrospectChatResult, avatar?: string) {
+  chatStore.templateMode = result.fallback
+  chatStore.suggestedReflection = result.reflection
+  sayRetrospect(result.reply, avatar)
+  setRetrospectStep(CHAT_STEP_BY_REFLECTION_STEP[result.step])
+}
+
+async function handleRetrospectChatError(error: unknown) {
+  if (error instanceof ApiError && error.code === 'LLM_UNAVAILABLE') {
+    // 503이면 템플릿 배너를 띄우고 P0 선택지 버튼으로 그대로 이어간다 (03 S11 · FR-04-15).
+    chatStore.templateMode = true
+    sayRetrospect('지금은 AI 연결이 원활하지 않아 기본 질문으로 이어갈게요.', thinkingAvatar)
+    return
+  }
+  if (error instanceof ApiError && error.code === 'DUPLICATE_RETROSPECT') {
+    sayRetrospect('이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
+    backToCandidates()
+    return
+  }
+  if (error instanceof ApiError && error.code === 'NOT_FOUND') {
+    sayRetrospect('그 거래를 찾지 못했어요. 다른 거래를 골라 주세요.', searchAvatar)
+    backToCandidates()
+    return
+  }
+  sayRetrospect(
+    await apiErrorMessage(error, '회고 대화를 이어가지 못했어요. 잠시 후 다시 시도해주세요.'),
+  )
+}
+
+function backToCandidates() {
+  chatStore.selectedCandidate = null
+  chatStore.resetReflection()
+  setRetrospectStep(chatStore.candidates.length > 0 ? 'pick' : 'empty')
 }
 
 function acceptCandidate() {
   say('user', '회고해볼게요')
-  startQa()
+  void startQa()
 }
 
 function openPicker() {
@@ -428,33 +582,122 @@ function openPicker() {
 }
 
 function confirmPick() {
-  selected.value = candidates.find((c) => c.id === pickedId.value)!
-  startQa()
+  const picked = candidates.value.find((c) => c.transactionId === pickedId.value)
+  if (!picked) return
+  chatStore.selectedCandidate = picked
+  void startQa()
 }
 
-function startQa() {
-  say(
-    'user',
-    `${selected.value.merchant} ${selected.value.amount.toLocaleString('ko-KR')}원 회고할게요`,
-  )
-  say(
-    'ai',
-    `좋아요! ${selected.value.merchant} ${selected.value.amount.toLocaleString('ko-KR')}원에 대해 함께 돌아볼까요? 😊`,
-    cheerAvatar,
-  )
+/**
+ * 후보를 고른 직후 `INTRO` 턴을 한 번 부른다 (`message` 생략).
+ * 응답 `reply`가 선정 이유를 AI가 재구성한 첫 발화다 (FR-04-10·11).
+ */
+async function startQa() {
+  const candidate = chatStore.selectedCandidate
+  if (!candidate || requestPending.value) return
+  chatStore.resetReflection()
+  // 여기부터가 이 거래의 대화다. 앞선 거래의 답이 다음 요청에 실리지 않게 경계를 옮긴다.
+  chatStore.retrospectHistoryStart = chatStore.histories.retrospect.length
+  say('user', `${candidate.merchant} ${candidate.amount.toLocaleString('ko-KR')}원 회고할게요`)
+  // 서버가 실패해도 P0 선택지 모드로 이어갈 수 있게 먼저 단계를 옮긴다.
   step.value = 'qaSatisfaction'
+  requestPending.value = true
+  try {
+    applyChatResult(
+      await chatRetrospect({
+        transactionId: candidate.transactionId,
+        step: 'INTRO',
+        reflection: chatStore.reflection,
+        recentMessages: recentMessages(),
+      }),
+      cheerAvatar,
+    )
+  } catch (error) {
+    await handleRetrospectChatError(error)
+  } finally {
+    requestPending.value = false
+  }
 }
 
 function answer(question: string, value: string, nextStep: ChatStep) {
+  chatStore.suggestedReflection = null
   say('ai', question, thinkingAvatar)
   say('user', value)
   step.value = nextStep
 }
 
-function finishRetrospect() {
-  reasonExpanded.value = false
+// 칩 선택은 서버를 부르지 않는다 — 사용자가 확정한 값만 reflection에 담는다 (P0 선택지 모드 · E-20).
+function answerSatisfaction(label: string) {
+  chatStore.reflection.satisfaction = tagValue(SATISFACTION_OPTIONS, label)
+  answer('이 소비는 어땠나요?', label, 'qaPurpose')
+}
+
+function answerPurpose(label: string) {
+  chatStore.reflection.purpose = tagValue(PURPOSE_OPTIONS, label)
+  answer('이 소비의 목적은 무엇이었나요?', label, 'qaCompanion')
+}
+
+function answerCompanion(label: string) {
+  chatStore.reflection.companion = tagValue(COMPANION_OPTIONS, label)
+  answer('이 소비는 누구와 함께했나요?', label, 'qaRepeat')
+}
+
+function answerRepeat(label: string) {
+  chatStore.reflection.repeatIntent = tagValue(REPEAT_OPTIONS, label)
+  answer('이 소비를 앞으로도 반복할 의향이 있나요?', label, 'wrapup')
+}
+
+/**
+ * 05 §2 `POST /retrospects` (FR-04-14).
+ * **저장이 성공한 뒤에만** 저장 안내와 소비 분석 채널 전환을 한다.
+ * 저장 응답(`behaviorId` 등)은 이번 범위에서 쓰지 않는다 — 지도·제안은 다음 조회에서 재계산값을 받는다 (01 E-61 · E-81).
+ */
+async function finishRetrospect() {
+  const candidate = chatStore.selectedCandidate
+  if (!candidate || requestPending.value) return
+
+  // 확정하지 않은 항목이 남았으면 값을 지어내지 않고 그 질문으로 되돌아간다 (01 E-20).
+  const { satisfaction, purpose, companion, repeatIntent } = chatStore.reflection
+  if (purpose === null || companion === null || repeatIntent === null) {
+    say('ai', '저장하기 전에 남은 질문 하나만 확인할게요.', thinkingAvatar)
+    step.value = purpose === null ? 'qaPurpose' : companion === null ? 'qaCompanion' : 'qaRepeat'
+    return
+  }
+
   say('user', '회고 마무리하기')
-  say('ai', '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.', happyAvatar)
+  requestPending.value = true
+  try {
+    await saveRetrospect({
+      transactionId: candidate.transactionId,
+      satisfaction,
+      purpose,
+      companion,
+      repeatIntent,
+      source: 'CANDIDATE',
+    })
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'DUPLICATE_RETROSPECT') {
+      sayRetrospect('이미 회고한 거래예요. 다른 거래를 골라 주세요.', searchAvatar)
+      backToCandidates()
+      return
+    }
+    sayRetrospect(await apiErrorMessage(error, '회고를 저장하지 못했어요. 다시 시도해주세요.'))
+    return
+  } finally {
+    requestPending.value = false
+  }
+
+  // 회고가 생긴 거래는 다음 조회에서 후보에서 빠진다 (01 E-62) — 목록에서도 바로 뺀다.
+  chatStore.candidates = chatStore.candidates.filter(
+    (c) => c.transactionId !== candidate.transactionId,
+  )
+  reasonExpanded.value = false
+  sayRetrospect(
+    '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.',
+    happyAvatar,
+  )
+  // 저장이 끝난 거래를 계속 붙들지 않는다 — 회고 채널로 돌아오면 후보 선택부터다.
+  backToCandidates()
   chatStore.activate('analysis')
   if (chatStore.histories.analysis.length === 0) {
     say('ai', '방금 마친 회고를 바탕으로 행동 조정안을 정리해봤어요.', searchAvatar)
@@ -535,6 +778,25 @@ async function apiErrorMessage(error: unknown, fallback: string) {
       bell
       bell-dot
     />
+
+    <div
+      v-if="activeMode === 'retrospect' && chatStore.templateMode"
+      role="status"
+      class="bg-preview-yellow text-preview-yellow-ink flex shrink-0 items-center gap-2 px-4 py-2.5 text-[13px] font-medium"
+    >
+      <IconAlertTriangle
+        :size="16"
+        class="shrink-0"
+      />
+      <span class="flex-1">기본 질문으로 진행하고 있어요.</span>
+      <button
+        type="button"
+        class="shrink-0 font-bold underline"
+        @click="chatStore.templateMode = false"
+      >
+        다시 연결
+      </button>
+    </div>
 
     <main
       ref="thread"
@@ -681,7 +943,7 @@ async function apiErrorMessage(error: unknown, fallback: string) {
           </button>
         </div>
       </template>
-      <template v-else-if="step === 'candidate'">
+      <template v-else-if="step === 'candidate' && selected">
         <ChatBubble
           role="ai"
           :avatar="activeAvatar"
@@ -700,11 +962,12 @@ async function apiErrorMessage(error: unknown, fallback: string) {
               <p class="text-ink text-lg font-bold">
                 {{ selected.amount.toLocaleString('ko-KR') }}원
               </p>
-              <p class="text-ink-muted text-xs">{{ selected.when }}</p>
+              <p class="text-ink-muted text-xs">{{ formatOccurredAt(selected.occurredAt) }}</p>
             </div>
           </div>
           <div class="mt-3 flex gap-2">
             <span
+              v-if="selected.timeSlot === 'NIGHT'"
               class="text-brand bg-brand/10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
             >
               <IconMoonStars :size="13" /> 심야
@@ -712,7 +975,7 @@ async function apiErrorMessage(error: unknown, fallback: string) {
             <span
               class="text-brand bg-brand/10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
             >
-              <IconRepeat :size="13" /> 반복
+              {{ selected.category }}
             </span>
           </div>
         </div>
@@ -725,29 +988,13 @@ async function apiErrorMessage(error: unknown, fallback: string) {
             />
             이 거래를 회고 후보로 선정한 이유
           </p>
-          <ul class="text-ink-muted mt-2 space-y-1.5 text-sm">
-            <li class="flex gap-2">
-              <IconCheck
-                :size="15"
-                class="text-brand mt-0.5 shrink-0"
-              />
-              최근 30일 동안 심야 시간대 식비 지출이 반복되었어요.
-            </li>
-            <li class="flex gap-2">
-              <IconCheck
-                :size="15"
-                class="text-brand mt-0.5 shrink-0"
-              />
-              비슷한 금액의 배달 주문이 자주 있었어요.
-            </li>
-            <li class="flex gap-2">
-              <IconCheck
-                :size="15"
-                class="text-brand mt-0.5 shrink-0"
-              />
-              지출 패턴을 점검하면 더 나은 소비 습관을 만들 수 있어요.
-            </li>
-          </ul>
+          <p class="text-ink-muted mt-2 flex gap-2 text-sm">
+            <IconCheck
+              :size="15"
+              class="text-brand mt-0.5 shrink-0"
+            />
+            {{ selected.reason }}
+          </p>
         </div>
 
         <div class="space-y-2">
@@ -761,6 +1008,34 @@ async function apiErrorMessage(error: unknown, fallback: string) {
             @click="openPicker"
             >이번 거래는 제외</PrimaryButton
           >
+        </div>
+      </template>
+
+      <template v-else-if="step === 'empty'">
+        <ChatBubble
+          role="ai"
+          :avatar="activeAvatar"
+        >
+          <p class="font-semibold">지금은 돌아볼 거래가 없어요 🌱</p>
+          <p class="mt-1">최근 3일 안에는 회고 조건을 채운 거래가 없었어요.</p>
+        </ChatBubble>
+
+        <div class="border-line bg-surface rounded-2xl border p-4">
+          <p class="text-ink flex items-center gap-1.5 text-[13px] font-bold">
+            <IconClock
+              :size="16"
+              class="text-brand"
+            />
+            어떤 거래가 후보가 되나요?
+          </p>
+          <ul class="text-ink-muted mt-2 space-y-1.5 text-sm">
+            <li>· 결제한 지 하루가 지난 거래예요.</li>
+            <li>· 시간대 평균을 크게 넘거나, 설정한 임계값을 넘은 지출이에요.</li>
+            <li>· 같은 묶음에서 만족도가 낮게 반복된 소비예요.</li>
+          </ul>
+          <p class="text-ink-faint mt-3 text-xs leading-[1.4]">
+            새 거래내역을 올리거나 하루 뒤에 다시 확인해 주세요.
+          </p>
         </div>
       </template>
 
@@ -803,10 +1078,10 @@ async function apiErrorMessage(error: unknown, fallback: string) {
           <div class="divide-line divide-y">
             <button
               v-for="c in filtered"
-              :key="c.id"
+              :key="c.transactionId"
               type="button"
               class="flex w-full items-center gap-3 py-2.5"
-              @click="pickedId = c.id"
+              @click="pickedId = c.transactionId"
             >
               <MerchantBadge
                 :name="c.merchant"
@@ -820,14 +1095,20 @@ async function apiErrorMessage(error: unknown, fallback: string) {
                 <span class="text-ink block text-sm font-bold"
                   >{{ c.amount.toLocaleString('ko-KR') }}원</span
                 >
-                <span class="text-ink-muted block text-xs">{{ c.when }}</span>
+                <span class="text-ink-muted block text-xs">{{
+                  formatOccurredAt(c.occurredAt)
+                }}</span>
               </span>
               <span
                 class="flex size-5 shrink-0 items-center justify-center rounded-full border"
-                :class="pickedId === c.id ? 'border-brand bg-brand text-surface' : 'border-line'"
+                :class="
+                  pickedId === c.transactionId
+                    ? 'border-brand bg-brand text-surface'
+                    : 'border-line'
+                "
               >
                 <IconCheck
-                  v-if="pickedId === c.id"
+                  v-if="pickedId === c.transactionId"
                   :size="12"
                   :stroke-width="3"
                 />
@@ -848,7 +1129,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="satisfactionOptions"
-          @pick="(v) => answer('이 소비는 어땠나요?', v, 'qaPurpose')"
+          :suggested="suggestedLabel"
+          @pick="answerSatisfaction"
         />
       </template>
 
@@ -860,7 +1142,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="purposeOptions"
-          @pick="(v) => answer('이 소비의 목적은 무엇이었나요?', v, 'qaCompanion')"
+          :suggested="suggestedLabel"
+          @pick="answerPurpose"
         />
       </template>
 
@@ -872,7 +1155,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="companionOptions"
-          @pick="(v) => answer('이 소비는 누구와 함께했나요?', v, 'qaRepeat')"
+          :suggested="suggestedLabel"
+          @pick="answerCompanion"
         />
       </template>
 
@@ -884,7 +1168,8 @@ async function apiErrorMessage(error: unknown, fallback: string) {
         >
         <ChatQuickReplies
           :options="repeatOptions"
-          @pick="(v) => answer('이 소비를 앞으로도 반복할 의향이 있나요?', v, 'wrapup')"
+          :suggested="suggestedLabel"
+          @pick="answerRepeat"
         />
       </template>
 
