@@ -150,6 +150,31 @@ describe('온보딩 표본 회고', () => {
     expect(pushSpy).toHaveBeenCalledWith('/')
   })
 
+  it('공백이 있는 목적 라벨을 골라도 저장 요청에는 정본 표기가 나간다', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
+
+    await click(wrapper, '다음 단계로')
+    await click(wrapper, '다음 단계로')
+    await selectUpload(wrapper)
+    await click(wrapper, '다음 단계로')
+
+    await click(wrapper, '만족했어요')
+    expect(wrapper.text()).toContain('휴식 · 취미')
+    expect(wrapper.text()).toContain('만남 · 사교')
+    await click(wrapper, '휴식 · 취미')
+    await click(wrapper, '가족')
+    await click(wrapper, '네')
+
+    expect(saveRetrospect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ purpose: '휴식·취미', companion: '가족' }),
+    )
+    expect(wrapper.text()).toContain('휴식 · 취미')
+    expect(wrapper.text()).not.toContain('휴식·취미')
+  })
+
   it('거래별 대화를 기록하며 10건 완료 후에만 홈으로 이동한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
