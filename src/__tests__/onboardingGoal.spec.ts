@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { routes } from '@/router'
+import MoneyInput from '@/components/common/MoneyInput.vue'
 import { createGoal } from '@/api/service'
 import OnboardingView from '@/views/OnboardingView.vue'
 
@@ -38,5 +39,24 @@ describe('온보딩 1단계 목표 등록 (#49)', () => {
       targetDate: '2027-11-15',
       currentAmount: 0,
     })
+  })
+
+  it('입력한 모은 금액을 currentAmount로 싣는다 (#32)', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
+
+    await wrapper.findAllComponents(MoneyInput)[1]!.get('input').setValue('450000')
+
+    const nextButton = wrapper
+      .findAll('button')
+      .find((item) => item.text().trim() === '다음 단계로')!
+    await nextButton.trigger('click')
+    await flushPromises()
+
+    expect(createGoal).toHaveBeenCalledWith(
+      expect.objectContaining({ currentAmount: 450_000, targetAmount: 3_000_000 }),
+    )
   })
 })

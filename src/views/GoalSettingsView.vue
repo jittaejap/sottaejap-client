@@ -22,11 +22,18 @@ const userStore = useUserStore()
 const goalType = ref<GoalType>(settings.goalType)
 const customName = ref(settings.goalType === 'CUSTOM' ? settings.goalName : '')
 const amount = ref(settings.goalAmount)
+/** 지금까지 모은 금액. `MoneyInput`이 숫자만 받아 0 미만이 될 수 없다. */
+const currentAmount = ref(0)
+/** 서버에서 읽어 온 실적. 이 값과 같으면 `PUT`에 싣지 않는다 (E-100 · #17 코멘트). */
+const savedCurrentAmount = ref(0)
 /** 달력이 다루는 `YYYY-MM-DD`. 아직 정하지 않았으면 빈 문자열이다. */
 const targetDate = ref('')
 /** 서버에서 읽어 온 예정일. 이 값과 같으면 `PUT`에 싣지 않는다 (05 v2.37 · E-114). */
 const savedTargetDate = ref('')
 const goalId = ref<number | null>(null)
+/** `GET /goals`가 준 raw double. `targetAmount <= 0`이면 서버가 null을 준다 (E-83). */
+const achievementRate = ref<number | null>(null)
+const projectedRate = ref<number | null>(null)
 const saving = ref(false)
 const saveError = ref('')
 const confirmingDelete = ref(false)
@@ -59,6 +66,15 @@ function applyGoal(goal: Goal) {
   customName.value = goal.name
   targetDate.value = goal.targetDate ?? ''
   savedTargetDate.value = goal.targetDate ?? ''
+  currentAmount.value = goal.currentAmount
+  savedCurrentAmount.value = goal.currentAmount
+  achievementRate.value = goal.achievementRate
+  projectedRate.value = goal.projectedRate
+}
+
+/** 서버가 raw double을 주므로 반올림은 화면이 한다 (E-83). */
+function toPercent(rate: number | null) {
+  return rate === null ? null : Math.round(rate * 100)
 }
 
 function onGoalNameInput(event: Event) {
@@ -82,18 +98,21 @@ async function save() {
         name,
         targetAmount: amount.value,
         ...(targetDate.value ? { targetDate: targetDate.value } : {}),
-        currentAmount: 0,
+        currentAmount: currentAmount.value,
       })
       goalId.value = created.id
     } else {
       const changedDate = targetDate.value !== savedTargetDate.value ? targetDate.value : ''
+      const changedAmount = currentAmount.value !== savedCurrentAmount.value
       await updateGoal(goalId.value, {
         name,
         targetAmount: amount.value,
         ...(changedDate ? { targetDate: changedDate } : {}),
+        ...(changedAmount ? { currentAmount: currentAmount.value } : {}),
       })
     }
     savedTargetDate.value = targetDate.value
+    savedCurrentAmount.value = currentAmount.value
     settings.updateGoal({ type: goalType.value, name, amount: amount.value })
     await router.push('/me')
   } catch (error) {
@@ -128,6 +147,10 @@ function startOver() {
   deleted.value = false
   targetDate.value = ''
   savedTargetDate.value = ''
+  currentAmount.value = 0
+  savedCurrentAmount.value = 0
+  achievementRate.value = null
+  projectedRate.value = null
 }
 
 async function apiErrorMessage(error: unknown, fallback: string) {
@@ -251,8 +274,45 @@ async function apiErrorMessage(error: unknown, fallback: string) {
       </section>
 
       <section class="space-y-2">
+        <label class="text-ink text-[13px] font-bold">지금까지 모은 금액</label>
+        <MoneyInput v-model="currentAmount" />
+      </section>
+
+      <section class="space-y-2">
         <label class="text-ink text-[13px] font-bold">목표 달성 예정일</label>
         <GoalDatePicker v-model="targetDate" />
+      </section>
+
+      <section
+        v-if="goalId !== null"
+        class="border-line space-y-2 rounded-2xl border p-4"
+      >
+        <p class="text-ink text-[13px] font-bold">달성률</p>
+        <p
+          v-if="toPercent(achievementRate) === null || toPercent(projectedRate) === null"
+          class="text-ink-muted text-sm"
+          data-testid="goal-rates"
+        >
+          목표 금액을 정하면 달성률을 보여드려요.
+        </p>
+        <div
+          v-else
+          class="flex items-center gap-3"
+          data-testid="goal-rates"
+        >
+          <span class="flex-1">
+            <span class="text-ink-muted block text-xs">지금</span>
+            <strong class="text-ink text-xl font-bold">{{ toPercent(achievementRate) }}%</strong>
+          </span>
+          <IconArrowRight
+            :size="16"
+            class="text-ink-faint"
+          />
+          <span class="flex-1">
+            <span class="text-ink-muted block text-xs">채택대로 가면</span>
+            <strong class="text-brand text-xl font-bold">{{ toPercent(projectedRate) }}%</strong>
+          </span>
+        </div>
       </section>
 
       <section
