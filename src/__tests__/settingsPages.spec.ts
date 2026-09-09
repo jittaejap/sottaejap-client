@@ -15,6 +15,7 @@ vi.mock('@/api/service', () => ({
   getGoals: vi.fn().mockResolvedValue([]),
   createGoal: vi.fn().mockResolvedValue({ id: 1 }),
   updateGoal: vi.fn().mockResolvedValue({ id: 1 }),
+  deleteGoal: vi.fn().mockResolvedValue(undefined),
 }))
 
 async function click(wrapper: VueWrapper, label: string) {

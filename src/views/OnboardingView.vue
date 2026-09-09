@@ -400,6 +400,7 @@ async function next() {
             ? goalName.value.trim()
             : `${selectedGoal?.label ?? '소비'} 자금`,
         targetAmount: goalAmount.value,
+        targetDate: goalDueDate.value,
         currentAmount: 0,
       })
       savedSteps.add(1)
