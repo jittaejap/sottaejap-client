@@ -104,18 +104,24 @@ const behaviorTransactions = ref<BehaviorTransaction[]>([])
 const transactionsLoading = ref(false)
 const transactionsError = ref('')
 
+/**
+ * 요청 세대. 선택한 점이 같아도(B → A → B) 먼저 나간 요청과 마지막 요청을 구분해야 하므로
+ * `selectedId`가 아니라 이 번호로 최신 요청을 가린다. 화면에 그리지 않으니 ref로 두지 않는다.
+ */
+let transactionsRequestId = 0
+
 async function loadTransactions(behaviorId: number | null) {
+  const requestId = ++transactionsRequestId
   behaviorTransactions.value = []
   transactionsError.value = ''
   transactionsLoading.value = behaviorId !== null
   if (behaviorId === null) return
   try {
     const detail = await getBehavior(behaviorId)
-    // 점을 빠르게 바꾸면 늦게 온 응답이 다른 행동의 거래를 덮을 수 있다.
-    if (selectedId.value !== behaviorId) return
+    if (requestId !== transactionsRequestId) return
     behaviorTransactions.value = detail.transactions
   } catch (error) {
-    if (selectedId.value !== behaviorId) return
+    if (requestId !== transactionsRequestId) return
     transactionsError.value = apiErrorMessage(
       error,
       '거래 내역을 불러오지 못했어요. 다시 시도해주세요.',

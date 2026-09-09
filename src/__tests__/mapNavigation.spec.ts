@@ -7,7 +7,12 @@ import { routes } from '@/router'
 import HomeView from '@/views/HomeView.vue'
 import MapView from '@/views/MapView.vue'
 import { ApiError } from '@/api/apiError'
-import type { BehaviorDetail, SatisfactionMap, SatisfactionMapPoint } from '@/api/types'
+import type {
+  BehaviorDetail,
+  BehaviorTransaction,
+  SatisfactionMap,
+  SatisfactionMapPoint,
+} from '@/api/types'
 import {
   getBehavior,
   getGoals,
@@ -82,10 +87,29 @@ function behaviorDetail(overrides: Partial<BehaviorDetail> = {}): BehaviorDetail
   }
 }
 
+function transaction(id: number, merchant: string): BehaviorTransaction {
+  return {
+    id,
+    occurredAt: '2026-08-24T23:30:00+09:00',
+    merchant,
+    amount: 12_000,
+    category: '배달',
+    timeSlot: 'NIGHT',
+    behaviorId: 42,
+  }
+}
+
 function mountMap(router: ReturnType<typeof createRouter>) {
   return mount(MapView, {
     global: { plugins: [createPinia(), router], stubs: { SatisfactionScatter: true } },
   })
+}
+
+async function clickChip(wrapper: ReturnType<typeof mountMap>, name: string) {
+  const chip = wrapper.findAll('button').find((button) => button.text() === name)
+  if (!chip) throw new Error(`${name} 필터 칩을 찾지 못했습니다.`)
+  await chip.trigger('click')
+  await flushPromises()
 }
 
 async function mapRouter(path = '/map') {
@@ -209,6 +233,37 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).not.toContain('/5')
     expect(wrapper.text()).not.toContain('요기요')
     expect(wrapper.text()).not.toContain('교촌치킨')
+  })
+
+  it('같은 점으로 되돌아와도 늦게 끝난 이전 요청이 최신 거래를 덮지 않는다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([mapPoint(), mapPoint({ behaviorId: 7, name: '택시', burdenRatio: 0.05 })]),
+    )
+    const pending: ((detail: BehaviorDetail) => void)[] = []
+    vi.mocked(getBehavior).mockImplementation(
+      () => new Promise<BehaviorDetail>((resolve) => pending.push(resolve)),
+    )
+
+    const wrapper = mountMap(await mapRouter())
+    await flushPromises()
+    // 마운트가 정렬 첫 점(실제 배달)을 고르며 첫 요청을 낸다. 이어서 택시 → 실제 배달로 되돌아간다.
+    expect(pending).toHaveLength(1)
+    await clickChip(wrapper, '택시')
+    await clickChip(wrapper, '실제 배달')
+    expect(pending).toHaveLength(3)
+
+    pending[2]?.(behaviorDetail({ transactions: [transaction(1, '최신 응답 가맹점')] }))
+    await flushPromises()
+    expect(wrapper.text()).toContain('최신 응답 가맹점')
+
+    // 같은 점(실제 배달)으로 나갔던 첫 요청이라 selectedId 비교로는 걸러지지 않는다.
+    pending[0]?.(behaviorDetail({ transactions: [transaction(2, '늦게 끝난 첫 요청')] }))
+    pending[1]?.(behaviorDetail({ transactions: [transaction(3, '늦게 끝난 다른 점')] }))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('최신 응답 가맹점')
+    expect(wrapper.text()).not.toContain('늦게 끝난 첫 요청')
+    expect(wrapper.text()).not.toContain('늦게 끝난 다른 점')
   })
 
   it('홈 행동 변화 카드는 behaviorId path param으로 상세 화면을 연다', async () => {
