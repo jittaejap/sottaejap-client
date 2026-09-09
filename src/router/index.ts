@@ -21,8 +21,8 @@ export const routes = [
   {
     path: '/map/behaviors/:behaviorId',
     name: 'behavior-detail',
-    component: () => import('@/views/BehaviorDetailView.vue'),
-  }, // Screen 08 — IA 문서 반영 대기
+    component: () => import('@/views/MapView.vue'),
+  }, // S8 (3-3-3) — 지도의 반복 행동 상세 딥링크
   {
     path: '/map/behaviors/:behaviorId/reviews',
     name: 'behavior-reviews',
