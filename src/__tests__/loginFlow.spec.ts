@@ -17,6 +17,20 @@ vi.mock('@/api/service', () => ({
 }))
 
 describe('로그인 사용자 상태', () => {
+  it('정본에 있는 카카오와 데모 로그인만 노출한다', async () => {
+    const pinia = createPinia()
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/login')
+    await router.isReady()
+
+    const wrapper = mount(LoginView, { global: { plugins: [pinia, router] } })
+
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual([
+      '카카오로 시작하기',
+      '데모 계정으로 시작하기',
+    ])
+  })
+
   it('로그인 성공 시 GET /users/me 응답을 store에 저장한 뒤 이동한다', async () => {
     const me: UserMe = {
       id: 1,

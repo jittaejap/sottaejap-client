@@ -605,7 +605,7 @@ function selectPoint(behaviorId: number) {
                 :size="16"
                 class="shrink-0"
               />
-              회고가 완료된 거래만 표시됩니다. 회고가 아직이라면 AI채팅에서 이어서 작성할 수 있어요.
+              회고가 완료된 거래만 표시됩니다. 회고가 아직이라면 채팅에서 이어서 작성할 수 있어요.
             </p>
           </template>
         </div>
