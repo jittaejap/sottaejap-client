@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   IconBulb,
@@ -16,7 +16,7 @@ import {
   IconThumbUp,
 } from '@tabler/icons-vue'
 
-import type { SatisfactionMap, SatisfactionMapPoint } from '@/api/types'
+import type { BehaviorTransaction, SatisfactionMap, SatisfactionMapPoint } from '@/api/types'
 import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
@@ -34,7 +34,7 @@ import {
 } from '@/components/map/verdictStyle'
 import { useMapStore } from '@/stores/map'
 import { apiErrorMessage } from '@/api/errorMessage'
-import { getSatisfactionMap } from '@/api/service'
+import { getBehavior, getSatisfactionMap } from '@/api/service'
 
 const route = useRoute()
 const mapStore = useMapStore()
@@ -99,31 +99,48 @@ const burdenLabel = computed(() => {
   return selected.value.burdenRatio >= boundary ? '높음' : '낮음'
 })
 
-const explicitTransactions: Record<
-  string,
-  { merchant: string; amount: number; at: string; score: number }[]
-> = {
-  '심야 배달': [
-    { merchant: '배달의민족', amount: 23_000, at: '2025.05.13 23:41', score: 2 },
-    { merchant: '요기요', amount: 19_500, at: '2025.05.10 00:12', score: 2 },
-    { merchant: '쿠팡이츠', amount: 24_000, at: '2025.05.07 03:58', score: 3 },
-    { merchant: 'BBQ', amount: 22_000, at: '2025.04.28 00:35', score: 2 },
-    { merchant: '교촌치킨', amount: 20_000, at: '2025.04.14 01:12', score: 2 },
-  ],
+/** 선택한 점의 거래는 05 §2 `GET /behaviors/{id}`가 준다 — 이 묶음과 자식 리프의 합집합(E-72). */
+const behaviorTransactions = ref<BehaviorTransaction[]>([])
+const transactionsLoading = ref(false)
+const transactionsError = ref('')
+
+async function loadTransactions(behaviorId: number | null) {
+  behaviorTransactions.value = []
+  transactionsError.value = ''
+  transactionsLoading.value = behaviorId !== null
+  if (behaviorId === null) return
+  try {
+    const detail = await getBehavior(behaviorId)
+    // 점을 빠르게 바꾸면 늦게 온 응답이 다른 행동의 거래를 덮을 수 있다.
+    if (selectedId.value !== behaviorId) return
+    behaviorTransactions.value = detail.transactions
+  } catch (error) {
+    if (selectedId.value !== behaviorId) return
+    transactionsError.value = apiErrorMessage(
+      error,
+      '거래 내역을 불러오지 못했어요. 다시 시도해주세요.',
+    )
+  }
+  transactionsLoading.value = false
 }
 
-const transactions = computed(() => {
-  const point = selected.value
-  if (!point) return []
-  const explicit = explicitTransactions[point.name]
-  if (explicit) return explicit.slice(0, point.txCount)
-  return Array.from({ length: point.txCount }, (_, i) => ({
-    merchant: point.name,
-    amount: point.avgAmount,
-    at: `2025.05.${String(20 - i * 3).padStart(2, '0')} 19:${String(10 + i * 7).padStart(2, '0')}`,
-    score: Math.max(1, Math.round(satisfactionScore.value)),
-  }))
-})
+watch(selectedId, loadTransactions)
+
+const transactions = computed(() =>
+  behaviorTransactions.value.map((transaction) => ({
+    id: transaction.id,
+    merchant: transaction.merchant,
+    amount: transaction.amount,
+    category: transaction.category,
+    at: new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(
+      new Date(transaction.occurredAt),
+    ),
+  })),
+)
+
+const transactionsTotal = computed(() =>
+  transactions.value.reduce((sum, transaction) => sum + transaction.amount, 0),
+)
 
 function selectPoint(behaviorId: number) {
   selectedId.value = behaviorId
@@ -323,10 +340,19 @@ function selectPoint(behaviorId: number) {
                 {{ selected.prescription }}
               </p>
 
-              <div class="divide-line mt-2 divide-y">
+              <p
+                v-if="transactionsError"
+                class="text-ink-muted mt-2 text-xs"
+              >
+                {{ transactionsError }}
+              </p>
+              <div
+                v-else
+                class="divide-line mt-2 divide-y"
+              >
                 <div
                   v-for="tx in transactions.slice(0, 3)"
-                  :key="tx.at"
+                  :key="tx.id"
                   class="flex items-center gap-3 py-2.5"
                 >
                   <MerchantBadge
@@ -468,44 +494,71 @@ function selectPoint(behaviorId: number) {
               </span>
               <div>
                 <p class="text-ink font-bold">{{ selected.name }}</p>
-                <p class="text-ink-muted text-xs">회고가 완료된 거래를 모았어요</p>
+                <p class="text-ink-muted text-xs">이 묶음에 배정된 거래예요</p>
               </div>
             </div>
 
-            <div class="flex items-center justify-between">
-              <p class="text-ink text-sm font-semibold">
-                거래 내역
-                <span class="text-ink-muted font-normal">(총 {{ transactions.length }}건)</span>
-              </p>
-              <p class="text-ink text-sm font-bold">
-                총
-                {{ transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString('ko-KR') }}원
-              </p>
-            </div>
+            <p
+              v-if="transactionsLoading"
+              class="text-ink-muted py-10 text-center text-sm"
+            >
+              거래 내역을 불러오는 중이에요.
+            </p>
 
-            <div class="space-y-2">
-              <div
-                v-for="tx in transactions"
-                :key="tx.at"
-                class="border-line flex items-center gap-3 rounded-2xl border p-3"
+            <div
+              v-else-if="transactionsError"
+              class="border-line space-y-3 rounded-2xl border p-4 text-center"
+            >
+              <p class="text-ink-muted text-sm">{{ transactionsError }}</p>
+              <PrimaryButton
+                variant="outline"
+                @click="loadTransactions(selectedId)"
+                >다시 시도</PrimaryButton
               >
-                <MerchantBadge :name="tx.merchant" />
-                <span class="flex-1">
-                  <span class="text-ink block text-sm font-semibold">{{ tx.merchant }}</span>
-                  <span class="text-ink-muted block text-xs">{{ tx.at }}</span>
-                </span>
-                <span class="text-right">
-                  <span class="text-ink block text-sm font-bold"
-                    >{{ tx.amount.toLocaleString('ko-KR') }}원</span
-                  >
-                  <span
-                    class="text-satisfaction-low bg-satisfaction-low/10 mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                  >
-                    {{ tx.score }}/5
-                  </span>
-                </span>
-              </div>
             </div>
+
+            <p
+              v-else-if="transactions.length === 0"
+              class="text-ink-muted border-line rounded-2xl border p-6 text-center text-sm"
+            >
+              이 묶음에 배정된 거래가 아직 없어요.
+            </p>
+
+            <template v-else>
+              <div class="flex items-center justify-between">
+                <p class="text-ink text-sm font-semibold">
+                  거래 내역
+                  <span class="text-ink-muted font-normal">(총 {{ transactions.length }}건)</span>
+                </p>
+                <p class="text-ink text-sm font-bold">
+                  총 {{ transactionsTotal.toLocaleString('ko-KR') }}원
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <div
+                  v-for="tx in transactions"
+                  :key="tx.id"
+                  class="border-line flex items-center gap-3 rounded-2xl border p-3"
+                >
+                  <MerchantBadge :name="tx.merchant" />
+                  <span class="flex-1">
+                    <span class="text-ink block text-sm font-semibold">{{ tx.merchant }}</span>
+                    <span class="text-ink-muted block text-xs">{{ tx.at }}</span>
+                  </span>
+                  <span class="text-right">
+                    <span class="text-ink block text-sm font-bold"
+                      >{{ tx.amount.toLocaleString('ko-KR') }}원</span
+                    >
+                    <span
+                      class="bg-surface-muted text-ink-muted mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                    >
+                      {{ tx.category }}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </template>
 
             <p
               class="text-ink-muted bg-surface-muted flex items-center gap-2 rounded-2xl p-3 text-xs"
@@ -514,7 +567,7 @@ function selectPoint(behaviorId: number) {
                 :size="16"
                 class="shrink-0"
               />
-              회고가 완료된 거래만 표시됩니다. 회고가 아직이라면 채팅에서 이어서 작성할 수 있어요.
+              이 묶음과 하위 묶음에 배정된 거래를 모두 보여드려요.
             </p>
           </template>
         </div>
