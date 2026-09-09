@@ -23,6 +23,7 @@ import {
   tagLabels,
   tagValue,
 } from '@/components/chat/tagOptions'
+import GoalDatePicker from '@/components/common/goal-date-picker.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import goalCustom from '@/assets/images/onboarding/goal-custom.png'
 import goalEmergency from '@/assets/images/onboarding/goal-emergency.png'
@@ -41,14 +42,22 @@ import {
 import type { CompanionTag, PurposeTag, Satisfaction } from '@/api/enums'
 import { apiErrorMessage } from '@/api/errorMessage'
 import { useUserStore } from '@/stores/user'
+import { addCalendarMonths, toDateIso } from '@/utils/date'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+function initialGoalDueDate() {
+  return addCalendarMonths(toDateIso(new Date()), 1)
+}
+
 const step = ref(1)
 const totalSteps = 4
 const goalType = ref('TRAVEL')
 const goalName = ref('')
 const goalAmount = ref(3_000_000)
+const goalDueDate = ref(initialGoalDueDate())
+const goalDueDay = ref(Number(goalDueDate.value.slice(-2)))
 const onboardingFileInput = useTemplateRef<HTMLInputElement>('onboardingFileInput')
 const uploadedFile = ref<{ name: string; size: string } | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -181,7 +190,28 @@ const reviewStage = ref<ReviewStage>('satisfaction')
 const reviewRecords = ref<ReviewRecord[]>([])
 const reviewMessages = ref<ReviewMessage[]>([])
 const reviewAnswers = ref<ReviewAnswer>({})
-const reviewThread = useTemplateRef<HTMLElement>('reviewThread')
+const scrollContainer = useTemplateRef<HTMLElement>('scrollContainer')
+
+function updateGoalDueDate(value: string) {
+  goalDueDate.value = value
+  goalDueDay.value = Number(value.slice(-2))
+}
+
+function addGoalMonths(months: number) {
+  goalDueDate.value = addCalendarMonths(goalDueDate.value, months, goalDueDay.value)
+}
+
+function scrollCalendarIntoView(isOpen: boolean) {
+  if (!isOpen) return
+  void nextTick(() => {
+    if (scrollContainer.value) {
+      scrollContainer.value.scrollTo({
+        top: scrollContainer.value.scrollHeight,
+        behavior: 'smooth',
+      })
+    }
+  })
+}
 
 const currentReviewTransaction = computed(() => reviewTransactions.value[reviewIndex.value]!)
 const completedReviewCount = computed(() => reviewRecords.value.length)
@@ -307,7 +337,8 @@ watch(
   [reviewMessages, reviewStage],
   () => {
     void nextTick(() => {
-      if (reviewThread.value) reviewThread.value.scrollTop = reviewThread.value.scrollHeight
+      if (scrollContainer.value)
+        scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
     })
   },
   { deep: true },
@@ -445,7 +476,7 @@ async function next() {
     </header>
 
     <main
-      ref="reviewThread"
+      ref="scrollContainer"
       class="min-h-0 flex-1 overflow-y-auto px-6 pt-5"
     >
       <section
@@ -519,6 +550,25 @@ async function next() {
               @click="goalAmount += amount"
             >
               +{{ amount / 10_000 }}만
+            </button>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <label class="text-ink-muted text-[13px] font-bold">목표 달성 예정일</label>
+          <GoalDatePicker
+            :model-value="goalDueDate"
+            @update:model-value="updateGoalDueDate"
+            @open-change="scrollCalendarIntoView"
+          />
+          <div class="flex gap-2">
+            <button
+              v-for="months in [3, 6, 12]"
+              :key="months"
+              type="button"
+              class="border-line text-ink-muted flex-1 rounded-full border py-2 text-xs font-medium"
+              @click="addGoalMonths(months)"
+            >
+              +{{ months }}개월
             </button>
           </div>
         </div>
