@@ -33,138 +33,28 @@ import {
   verdictTone,
 } from '@/components/map/verdictStyle'
 import { useMapStore } from '@/stores/map'
+import { apiErrorMessage } from '@/api/errorMessage'
 import { getSatisfactionMap } from '@/api/service'
 
 const route = useRoute()
 const mapStore = useMapStore()
 const subview = ref<'map' | 'behavior' | 'transactions'>('map')
 
-/** 서버 연동 전 임시 데이터. `GET /satisfaction-map` 응답과 같은 모양이다. */
-const mockMap: SatisfactionMap = {
-  analysisYearMonth: '2025-05',
-  axisX: { label: '지출 부담', formula: 'MONTHLY_TOTAL_OVER_BUDGET', monthlyBudget: 2_500_000 },
-  axisY: { label: '만족도', range: [-1, 1] },
-  boundaries: { x: 0.04, y: 0 },
-  points: [
-    {
-      behaviorId: 1,
-      name: '여행',
-      monthlyTotalAmount: 75_000,
-      avgAmount: 25_000,
-      txCount: 3,
-      burdenRatio: 0.03,
-      adjustedSatisfaction: 0.85,
-      retrospectCount: 3,
-      evaluationStatus: 'RESOLVED',
-      quadrant: 'PROTECT',
-      verdict: 'SUSTAIN',
-      prescription: '만족도가 높고 부담이 낮아요. 지금처럼 유지해도 좋아요.',
-      cta: { type: 'RESERVE_BUDGET', label: '예산 확보하기' },
-    },
-    {
-      behaviorId: 2,
-      name: '친구와 외식',
-      monthlyTotalAmount: 190_000,
-      avgAmount: 47_500,
-      txCount: 4,
-      burdenRatio: 0.076,
-      adjustedSatisfaction: 0.62,
-      retrospectCount: 4,
-      evaluationStatus: 'RESOLVED',
-      quadrant: 'KEEP',
-      verdict: 'SUSTAIN',
-      prescription: '만족도는 높지만 지출 부담이 커요. 횟수보다 금액을 살펴보세요.',
-      cta: null,
-    },
-    {
-      behaviorId: 3,
-      name: '친구와 카페',
-      monthlyTotalAmount: 120_000,
-      avgAmount: 20_000,
-      txCount: 6,
-      burdenRatio: 0.048,
-      adjustedSatisfaction: 0.4,
-      retrospectCount: 5,
-      evaluationStatus: 'RESOLVED',
-      quadrant: 'KEEP',
-      verdict: 'SUSTAIN',
-      prescription: '관계에 쓰는 지출이라 만족도가 높아요. 주 1회 정도가 적당해요.',
-      cta: null,
-    },
-    {
-      behaviorId: 4,
-      name: '대중교통',
-      monthlyTotalAmount: 60_000,
-      avgAmount: 12_000,
-      txCount: 5,
-      burdenRatio: 0.024,
-      adjustedSatisfaction: -0.3,
-      retrospectCount: 3,
-      evaluationStatus: 'RESOLVED',
-      quadrant: 'MINOR',
-      verdict: 'ADJUST',
-      prescription: '부담은 작지만 만족도가 낮아요. 정기권을 검토해보세요.',
-      cta: null,
-    },
-    {
-      behaviorId: 5,
-      name: '온라인 쇼핑',
-      monthlyTotalAmount: 90_000,
-      avgAmount: 30_000,
-      txCount: 3,
-      burdenRatio: 0.036,
-      adjustedSatisfaction: -0.12,
-      retrospectCount: 1,
-      evaluationStatus: 'PENDING',
-      quadrant: null,
-      verdict: null,
-      prescription: '회고가 더 쌓이면 판정을 알려드릴게요.',
-      cta: null,
-    },
-    {
-      behaviorId: 6,
-      name: '심야 배달',
-      monthlyTotalAmount: 108_500,
-      avgAmount: 21_700,
-      txCount: 5,
-      burdenRatio: 0.0434,
-      adjustedSatisfaction: -0.72,
-      retrospectCount: 5,
-      evaluationStatus: 'RESOLVED',
-      quadrant: 'PRIORITY',
-      verdict: 'ADJUST',
-      prescription: '늦은 시간 배달 지출이 반복되고 있어요. 소액이라도 누적 부담이 커질 수 있어요.',
-      cta: null,
-    },
-    {
-      behaviorId: 7,
-      name: '택시',
-      monthlyTotalAmount: 140_000,
-      avgAmount: 35_000,
-      txCount: 4,
-      burdenRatio: 0.056,
-      adjustedSatisfaction: -0.45,
-      retrospectCount: 4,
-      evaluationStatus: 'RESOLVED',
-      quadrant: 'PRIORITY',
-      verdict: 'ADJUST',
-      prescription: '심야 이동이 잦아요. 막차 시간을 미리 확인해보세요.',
-      cta: null,
-    },
-  ],
-}
-
 const selectedId = ref<number | null>(null)
 const filter = ref<string>('전체')
-const usingDemoData = ref(false)
 const loading = ref(true)
+const loadError = ref('')
 
-onMounted(async () => {
+async function loadMap() {
+  loading.value = true
+  loadError.value = ''
   try {
     mapStore.data = await getSatisfactionMap()
-  } catch {
-    mapStore.data = mockMap
-    usingDemoData.value = true
+  } catch (error) {
+    mapStore.data = null
+    loadError.value = apiErrorMessage(error, '만족도 지도를 불러오지 못했어요. 다시 시도해주세요.')
+    loading.value = false
+    return
   }
   const behaviorId = Number(route.params.behaviorId)
   if (Number.isInteger(behaviorId)) {
@@ -176,7 +66,9 @@ onMounted(async () => {
   }
   selectedId.value ??= mapStore.sortedPoints[0]?.behaviorId ?? null
   loading.value = false
-})
+}
+
+onMounted(loadMap)
 
 const points = computed(() => mapStore.sortedPoints)
 const visiblePoints = computed(() =>
@@ -196,8 +88,13 @@ const selectedQuadrantTone = computed(() =>
   selected.value ? quadrantTone(selected.value) : 'pending',
 )
 
+/** 조회에 성공했을 때만 경계선을 그린다 — 07 §8 · E-74. */
+const boundaries = computed<SatisfactionMap['boundaries']>(
+  () => mapStore.data?.boundaries ?? { x: null, y: null },
+)
+
 const burdenLabel = computed(() => {
-  const boundary = mapStore.data?.boundaries.x ?? mockMap.boundaries.x
+  const boundary = mapStore.data?.boundaries.x ?? null
   if (selected.value === null || boundary === null) return '보통'
   return selected.value.burdenRatio >= boundary ? '높음' : '낮음'
 })
@@ -257,16 +154,30 @@ function selectPoint(behaviorId: number) {
           <template v-if="subview === 'map'">
             <p class="text-ink text-lg font-bold">만족도와 지출 부담을 함께 확인해보세요</p>
             <p
-              v-if="usingDemoData"
-              class="bg-brand-soft text-brand rounded-xl px-3 py-2 text-xs font-medium"
-            >
-              서버 데이터를 불러오지 못해 현재 예시 데이터를 보여드리고 있어요.
-            </p>
-            <p
               v-if="loading"
               class="text-ink-muted py-10 text-center text-sm"
             >
               만족도 지도를 불러오는 중이에요.
+            </p>
+
+            <div
+              v-else-if="loadError"
+              class="border-line space-y-3 rounded-2xl border p-4 text-center"
+            >
+              <p class="text-ink-muted text-sm">{{ loadError }}</p>
+              <PrimaryButton
+                variant="outline"
+                @click="loadMap"
+                >다시 시도</PrimaryButton
+              >
+            </div>
+
+            <p
+              v-else-if="points.length === 0"
+              class="text-ink-muted border-line rounded-2xl border p-6 text-center text-sm leading-relaxed"
+            >
+              아직 지도에 그릴 회고가 없어요.<br />
+              채팅에서 회고를 남기면 소비 행동이 이 지도에 나타나요.
             </p>
 
             <div
@@ -344,14 +255,14 @@ function selectPoint(behaviorId: number) {
                   >
                     <span>높음</span>
                     <span class="[writing-mode:vertical-rl] font-medium">{{
-                      mapStore.data?.axisY.label ?? mockMap.axisY.label
+                      mapStore.data?.axisY.label
                     }}</span>
                     <span>낮음</span>
                   </div>
                   <SatisfactionScatter
                     class="min-w-0 flex-1"
                     :points="visiblePoints"
-                    :boundaries="mapStore.data?.boundaries ?? mockMap.boundaries"
+                    :boundaries="boundaries"
                     :selected-id="selectedId"
                     @select="selectPoint"
                   />
@@ -359,9 +270,7 @@ function selectPoint(behaviorId: number) {
 
                 <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
                   <span>낮음</span>
-                  <span class="font-medium">{{
-                    mapStore.data?.axisX.label ?? mockMap.axisX.label
-                  }}</span>
+                  <span class="font-medium">{{ mapStore.data?.axisX.label }}</span>
                   <span>높음</span>
                 </div>
               </div>
