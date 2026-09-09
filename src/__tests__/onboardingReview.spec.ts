@@ -6,7 +6,8 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
-import { saveRetrospect, startOnboarding } from '@/api/service'
+import { ApiError } from '@/api/apiError'
+import { saveRetrospect, startOnboarding, uploadTransactions } from '@/api/service'
 
 const { candidates } = vi.hoisted(() => ({
   candidates: Array.from({ length: 10 }, (_, index) => ({
@@ -92,6 +93,23 @@ describe('온보딩 표본 회고', () => {
     expect(wrapper.text()).toContain('2.3 MB')
     expect(wrapper.text()).toContain('onboarding-history.xlsx')
     expect(nextButton?.attributes('disabled')).toBeUndefined()
+  })
+  it('업로드가 400 TOO_MANY_ROWS면 서버 message를 그대로 보여준다 (05 §2 · #24)', async () => {
+    const message = '거래내역이 너무 많아요. 20,000건 이하로 나눠서 올려 주세요.'
+    vi.mocked(uploadTransactions).mockRejectedValueOnce(new ApiError('TOO_MANY_ROWS', 400, message))
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
+
+    await click(wrapper, '다음 단계로')
+    await click(wrapper, '다음 단계로')
+    await selectUpload(wrapper)
+    await click(wrapper, '다음 단계로')
+
+    expect(wrapper.text()).toContain(message)
+    expect(wrapper.text()).not.toContain('입력 내용을 저장하지 못했어요.')
+    expect(wrapper.text()).not.toContain('0 / 10')
   })
   it('나중에 회고하기를 누르면 완료 API 성공 후 홈 이동을 요청한다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })

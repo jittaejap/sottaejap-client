@@ -11,6 +11,8 @@ vi.mock('@/api/service', () => ({
   }),
 }))
 
+import { ApiError } from '@/api/apiError'
+import { uploadTransactions } from '@/api/service'
 import TransactionsView from '@/views/TransactionsView.vue'
 
 function mountTransactions() {
@@ -67,5 +69,41 @@ describe('거래내역 추가 업로드', () => {
 
     expect(wrapper.text()).toContain('CSV 또는 XLSX 파일만 선택할 수 있어요.')
     expect(wrapper.text()).not.toContain('2. 파싱 결과 확인')
+  })
+
+  it('400 TOO_MANY_ROWS면 서버 message를 그대로 보여준다 (05 §2 · #24)', async () => {
+    const message = '거래내역이 너무 많아요. 20,000건 이하로 나눠서 올려 주세요.'
+    vi.mocked(uploadTransactions).mockRejectedValueOnce(new ApiError('TOO_MANY_ROWS', 400, message))
+    const wrapper = mountTransactions()
+    await openUploadTab(wrapper)
+    await selectFile(wrapper, new File(['a,b'], 'too-many.csv'))
+
+    const uploadButton = wrapper.findAll('button').find((item) => item.text() === '업로드 완료')
+    if (!uploadButton) throw new Error('업로드 완료 버튼을 찾지 못했다.')
+    await uploadButton.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(message)
+    expect(wrapper.text()).not.toContain('거래내역을 업로드하지 못했어요.')
+    expect(wrapper.text()).not.toContain('2. 파싱 결과 확인')
+  })
+
+  it('다른 오류 코드는 기존 고정 문구를 유지한다', async () => {
+    vi.mocked(uploadTransactions).mockRejectedValueOnce(
+      new ApiError('INTERNAL_ERROR', 500, '서버 문구'),
+    )
+    const wrapper = mountTransactions()
+    await openUploadTab(wrapper)
+    await selectFile(wrapper, new File(['a,b'], 'broken.csv'))
+
+    const uploadButton = wrapper.findAll('button').find((item) => item.text() === '업로드 완료')
+    if (!uploadButton) throw new Error('업로드 완료 버튼을 찾지 못했다.')
+    await uploadButton.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(
+      '거래내역을 업로드하지 못했어요. 파일을 확인하고 다시 시도해주세요.',
+    )
+    expect(wrapper.text()).not.toContain('서버 문구')
   })
 })
