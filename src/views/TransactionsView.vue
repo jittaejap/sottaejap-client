@@ -18,6 +18,7 @@ import AppFilterDropdown from '@/components/common/AppFilterDropdown.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
+import { apiErrorMessage } from '@/api/errorMessage'
 import { uploadTransactions } from '@/api/service'
 import type { TransactionUploadResult } from '@/api/types'
 
@@ -215,8 +216,11 @@ async function submitUpload() {
   fileError.value = ''
   try {
     uploadResult.value = await uploadTransactions(selectedFile.value)
-  } catch {
-    fileError.value = '거래내역을 업로드하지 못했어요. 파일을 확인하고 다시 시도해주세요.'
+  } catch (error) {
+    fileError.value = apiErrorMessage(
+      error,
+      '거래내역을 업로드하지 못했어요. 파일을 확인하고 다시 시도해주세요.',
+    )
   } finally {
     uploading.value = false
   }

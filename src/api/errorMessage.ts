@@ -12,6 +12,9 @@ export function apiErrorMessage(error: unknown, fallback: string) {
       return '입력값을 확인해 주세요. 같은 요청을 반복해도 처리되지 않아요.'
     case 'LLM_UNAVAILABLE':
       return 'AI 연결이 원활하지 않아 지금은 기본 안내 모드로 전환했어요.'
+    case 'TOO_MANY_ROWS':
+      // 05 §2: 서버 message가 곧 사용자 안내다 — "20,000건 이하로 나눠서 올려 주세요".
+      return error.message
     default:
       return fallback
   }
