@@ -98,6 +98,7 @@ describe('로그인 사용자 상태', () => {
     ['/\\evil.example', '백슬래시 — 파서가 슬래시로 읽는다'],
     ['/\\/evil.example', '백슬래시와 슬래시'],
     ['/\t/evil.example', '탭 — 파서가 지운다'],
+    ['http://[', '파서가 거부하는 값 — 던지면 로그인 자체가 죽는다'],
   ])('앱 밖으로 나가는 redirect 값 %s 은 홈으로 바꾼다 (%s)', async (redirect) => {
     const replaceSpy = await demoLoginFrom(`/login?redirect=${encodeURIComponent(redirect)}`)
     expect(replaceSpy).toHaveBeenCalledWith('/')

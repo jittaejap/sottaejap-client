@@ -24,8 +24,13 @@ const kakaoRedirectKey = 'sottaejap-kakao-oauth-redirect'
  */
 function loginRedirectTarget(value: unknown) {
   if (typeof value !== 'string') return '/'
-  const url = new URL(value, window.location.origin)
-  return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/'
+  try {
+    const url = new URL(value, window.location.origin)
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/'
+  } catch {
+    // 파서가 거부하는 값(`http://[` 등). 걸러내는 게 이 함수의 일이라 여기서 죽으면 안 된다.
+    return '/'
+  }
 }
 
 // 토큰과 `GET /users/me` 결과를 스토어가 함께 보관한다. 진입 가드가 그 값을 근거로 분기한다.
