@@ -6,7 +6,20 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
 import MoneyInput from '@/components/common/MoneyInput.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
-import { getRetrospectCandidates, saveRetrospect } from '@/api/service'
+import { saveRetrospect, startOnboarding } from '@/api/service'
+
+const { candidates } = vi.hoisted(() => ({
+  candidates: Array.from({ length: 10 }, (_, index) => ({
+    transactionId: index + 1,
+    occurredAt: '2026-07-01T12:00:00+09:00',
+    merchant: index === 0 ? '배달의민족' : `가맹점 ${index + 1}`,
+    amount: 10_000 + index,
+    category: '식사',
+    timeSlot: 'DAY',
+    reasonCode: 'ONBOARDING_SAMPLE',
+    reason: '온보딩 표본',
+  })),
+}))
 
 vi.mock('@/api/service', () => ({
   createGoal: vi.fn().mockResolvedValue({}),
@@ -17,19 +30,7 @@ vi.mock('@/api/service', () => ({
     periodTo: '2026-07-31',
     skippedRows: [],
   }),
-  startOnboarding: vi.fn().mockResolvedValue({}),
-  getRetrospectCandidates: vi.fn().mockResolvedValue(
-    Array.from({ length: 10 }, (_, index) => ({
-      transactionId: index + 1,
-      occurredAt: '2026-07-01T12:00:00+09:00',
-      merchant: index === 0 ? '배달의민족' : `가맹점 ${index + 1}`,
-      amount: 10_000 + index,
-      category: '식사',
-      timeSlot: 'AFTERNOON',
-      reasonCode: 'ONBOARDING_SAMPLE',
-      reason: '온보딩 표본',
-    })),
-  ),
+  startOnboarding: vi.fn().mockResolvedValue(candidates),
   updateSettings: vi.fn().mockResolvedValue({}),
   saveRetrospect: vi.fn().mockResolvedValue({}),
   completeOnboarding: vi.fn().mockResolvedValue({ onboardingCompleted: true, clusterCount: 1 }),
@@ -112,7 +113,7 @@ describe('온보딩 표본 회고', () => {
   })
 
   it('회고 후보가 없으면 빈 상태를 보여주고 완료할 수 있다', async () => {
-    vi.mocked(getRetrospectCandidates).mockResolvedValueOnce([])
+    vi.mocked(startOnboarding).mockResolvedValueOnce([])
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()

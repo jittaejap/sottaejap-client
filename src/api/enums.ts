@@ -5,7 +5,7 @@
 export const SATISFACTION = ['HIGH', 'LOW', 'UNKNOWN'] as const
 export type Satisfaction = (typeof SATISFACTION)[number]
 
-export const TIME_SLOT = ['MORNING', 'AFTERNOON', 'NIGHT'] as const
+export const TIME_SLOT = ['MORNING', 'DAY', 'EVENING', 'NIGHT'] as const
 export type TimeSlot = (typeof TIME_SLOT)[number]
 
 export const CARD_ISSUER = ['KB', 'HANA', 'SHINHAN'] as const
@@ -27,6 +27,9 @@ export type EvaluationStatus = (typeof EVALUATION_STATUS)[number]
 
 export const NOTIFICATION_TYPE = ['RETROSPECT_DUE', 'SUGGESTION'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPE)[number]
+
+export const SUGGESTION_STATUS = ['PROPOSED', 'ADOPTED', 'REJECTED'] as const
+export type SuggestionStatus = (typeof SUGGESTION_STATUS)[number]
 
 export const AUTH_PROVIDER = ['LOCAL', 'KAKAO', 'NAVER', 'GOOGLE'] as const
 export type AuthProvider = (typeof AUTH_PROVIDER)[number]

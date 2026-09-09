@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { IconArrowRight, IconCheck } from '@tabler/icons-vue'
 
@@ -11,13 +11,32 @@ import goalEmergency from '@/assets/images/onboarding/goal-emergency.png'
 import goalIndependence from '@/assets/images/onboarding/goal-independence.png'
 import goalTravel from '@/assets/images/onboarding/goal-travel.png'
 import { useSettingsStore, type GoalType } from '@/stores/settings'
+import { createGoal, getGoals, updateGoal } from '@/api/service'
+import { ApiError } from '@/api/apiError'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const settings = useSettingsStore()
+const userStore = useUserStore()
 const goalType = ref<GoalType>(settings.goalType)
 const customName = ref(settings.goalType === 'CUSTOM' ? settings.goalName : '')
 const amount = ref(settings.goalAmount)
 const period = ref(settings.goalPeriod)
+const goalId = ref<number | null>(null)
+const saving = ref(false)
+const saveError = ref('')
+
+onMounted(async () => {
+  try {
+    const [goal] = await getGoals()
+    if (!goal) return
+    goalId.value = goal.id
+    amount.value = goal.targetAmount
+    customName.value = goal.name
+  } catch (error) {
+    saveError.value = await apiErrorMessage(error, '저장된 목표를 불러오지 못했어요.')
+  }
+})
 
 const goalTypes = [
   { value: 'TRAVEL', label: '여행', image: goalTravel },
@@ -42,15 +61,44 @@ function onGoalNameInput(event: Event) {
   input.value = sanitized
 }
 
-function save() {
+async function save() {
+  if (saving.value) return
   const selected = goalTypes.find((goal) => goal.value === goalType.value)!
-  settings.updateGoal({
-    type: goalType.value,
-    name: goalType.value === 'CUSTOM' ? customName.value.trim() : `${selected.label} 자금`,
-    amount: amount.value,
-    period: period.value,
-  })
-  void router.push('/me')
+  const name = goalType.value === 'CUSTOM' ? customName.value.trim() : `${selected.label} 자금`
+  saving.value = true
+  saveError.value = ''
+  try {
+    if (goalId.value === null) {
+      const created = await createGoal({ name, targetAmount: amount.value, currentAmount: 0 })
+      goalId.value = created.id
+    } else {
+      await updateGoal(goalId.value, {
+        name,
+        targetAmount: amount.value,
+      })
+    }
+    settings.updateGoal({ type: goalType.value, name, amount: amount.value, period: period.value })
+    await router.push('/me')
+  } catch (error) {
+    saveError.value = await apiErrorMessage(error, '목표를 저장하지 못했어요. 다시 시도해주세요.')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function apiErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof ApiError)) return fallback
+  if (error.code === 'UNAUTHORIZED') {
+    userStore.signOut()
+    await router.push({ name: 'login' })
+    return '로그인이 만료됐어요.'
+  }
+  if (error.code === 'ONBOARDING_REQUIRED') {
+    await router.push({ name: 'onboarding' })
+    return '먼저 온보딩을 완료해 주세요.'
+  }
+  if (error.code === 'INVALID_INPUT') return '목표 이름과 금액을 다시 확인해 주세요.'
+  return fallback
 }
 </script>
 
@@ -156,10 +204,16 @@ function save() {
     </main>
 
     <footer class="bg-surface shrink-0 px-5 pt-3 pb-8">
+      <p
+        v-if="saveError"
+        class="text-brand mb-2 text-xs"
+      >
+        {{ saveError }}
+      </p>
       <button
         type="button"
         class="bg-brand text-surface flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl text-base font-bold disabled:opacity-40"
-        :disabled="!canSave"
+        :disabled="!canSave || saving"
         @click="save"
       >
         저장하기 <IconArrowRight :size="18" />

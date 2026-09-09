@@ -33,6 +33,7 @@ import {
   verdictTone,
 } from '@/components/map/verdictStyle'
 import { useMapStore } from '@/stores/map'
+import { getSatisfactionMap } from '@/api/service'
 
 const route = useRoute()
 const mapStore = useMapStore()
@@ -153,19 +154,28 @@ const mockMap: SatisfactionMap = {
   ],
 }
 
-const selectedId = ref<number | null>(6)
+const selectedId = ref<number | null>(null)
 const filter = ref<string>('전체')
+const usingDemoData = ref(false)
+const loading = ref(true)
 
-onMounted(() => {
-  mapStore.data = mockMap
+onMounted(async () => {
+  try {
+    mapStore.data = await getSatisfactionMap()
+  } catch {
+    mapStore.data = mockMap
+    usingDemoData.value = true
+  }
   const behaviorId = Number(route.params.behaviorId)
   if (Number.isInteger(behaviorId)) {
-    const match = mockMap.points.find((p) => p.behaviorId === behaviorId)
+    const match = mapStore.data.points.find((p) => p.behaviorId === behaviorId)
     if (match) {
       selectedId.value = match.behaviorId
       subview.value = 'behavior'
     }
   }
+  selectedId.value ??= mapStore.sortedPoints[0]?.behaviorId ?? null
+  loading.value = false
 })
 
 const points = computed(() => mapStore.sortedPoints)
@@ -187,7 +197,7 @@ const selectedQuadrantTone = computed(() =>
 )
 
 const burdenLabel = computed(() => {
-  const boundary = mockMap.boundaries.x
+  const boundary = mapStore.data?.boundaries.x ?? mockMap.boundaries.x
   if (selected.value === null || boundary === null) return '보통'
   return selected.value.burdenRatio >= boundary ? '높음' : '낮음'
 })
@@ -246,8 +256,23 @@ function selectPoint(behaviorId: number) {
         >
           <template v-if="subview === 'map'">
             <p class="text-ink text-lg font-bold">만족도와 지출 부담을 함께 확인해보세요</p>
+            <p
+              v-if="usingDemoData"
+              class="bg-brand-soft text-brand rounded-xl px-3 py-2 text-xs font-medium"
+            >
+              서버 데이터를 불러오지 못해 현재 예시 데이터를 보여드리고 있어요.
+            </p>
+            <p
+              v-if="loading"
+              class="text-ink-muted py-10 text-center text-sm"
+            >
+              만족도 지도를 불러오는 중이에요.
+            </p>
 
-            <div class="border-line rounded-2xl border p-3">
+            <div
+              v-else
+              class="border-line rounded-2xl border p-3"
+            >
               <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -319,14 +344,14 @@ function selectPoint(behaviorId: number) {
                   >
                     <span>높음</span>
                     <span class="[writing-mode:vertical-rl] font-medium">{{
-                      mockMap.axisY.label
+                      mapStore.data?.axisY.label ?? mockMap.axisY.label
                     }}</span>
                     <span>낮음</span>
                   </div>
                   <SatisfactionScatter
                     class="min-w-0 flex-1"
                     :points="visiblePoints"
-                    :boundaries="mockMap.boundaries"
+                    :boundaries="mapStore.data?.boundaries ?? mockMap.boundaries"
                     :selected-id="selectedId"
                     @select="selectPoint"
                   />
@@ -334,7 +359,9 @@ function selectPoint(behaviorId: number) {
 
                 <div class="text-ink-muted mt-1 flex items-center justify-between pl-4 text-[11px]">
                   <span>낮음</span>
-                  <span class="font-medium">{{ mockMap.axisX.label }}</span>
+                  <span class="font-medium">{{
+                    mapStore.data?.axisX.label ?? mockMap.axisX.label
+                  }}</span>
                   <span>높음</span>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -9,6 +9,13 @@ import AnalysisSettingsView from '@/views/AnalysisSettingsView.vue'
 import BudgetSettingsView from '@/views/BudgetSettingsView.vue'
 import GoalSettingsView from '@/views/GoalSettingsView.vue'
 import MyPageView from '@/views/MyPageView.vue'
+
+vi.mock('@/api/service', () => ({
+  updateSettings: vi.fn().mockResolvedValue({}),
+  getGoals: vi.fn().mockResolvedValue([]),
+  createGoal: vi.fn().mockResolvedValue({ id: 1 }),
+  updateGoal: vi.fn().mockResolvedValue({ id: 1 }),
+}))
 
 async function click(wrapper: VueWrapper, label: string) {
   const button = wrapper.findAll('button').find((item) => item.text().includes(label))
