@@ -3,8 +3,6 @@ import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IconBulb,
-  IconBurger,
-  IconCar,
   IconChartBar,
   IconChartPie,
   IconCheck,
@@ -13,14 +11,9 @@ import {
   IconChevronRight,
   IconChevronUp,
   IconClock,
-  IconCoffee,
-  IconGift,
   IconMoonStars,
-  IconMoped,
   IconRepeat,
   IconSearch,
-  IconShieldCheck,
-  IconShieldLock,
   IconTargetArrow,
 } from '@tabler/icons-vue'
 
@@ -28,7 +21,12 @@ import AppBottomNav from '@/components/common/AppBottomNav.vue'
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MerchantBadge from '@/components/common/MerchantBadge.vue'
 import PrimaryButton from '@/components/common/PrimaryButton.vue'
-import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
+import {
+  VERDICT_BADGE,
+  VERDICT_SOFT_BG_CLASS,
+  VERDICT_TEXT_CLASS,
+  verdictToneOf,
+} from '@/components/map/verdictStyle'
 import ChatBubble from '@/components/chat/ChatBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
@@ -253,135 +251,100 @@ const currentFrequency = computed(() => activeSuggestion.value?.txCount ?? 4)
 const frequency = ref(2)
 const requestPending = ref(false)
 const reasonExpanded = ref(false)
-/** FR-08-03 — 예상 절감액은 묶음의 평균 거래금액(avgAmount) × 조정 횟수다. 부담 산식과 다르다. */
-const behaviorAvgAmount = computed(() => activeSuggestion.value?.avgAmount ?? 21_700)
-const expectedSaving = computed(
-  () => (currentFrequency.value - frequency.value) * behaviorAvgAmount.value,
-)
+/**
+ * FR-08-03 — 예상 절감액은 묶음의 평균 거래금액(avgAmount) × 조정 횟수다. 부담 산식과 다르다.
+ * 제안이 없으면 곱할 평균이 없으므로 계산하지 않고 `null`을 낸다.
+ */
+const expectedSaving = computed(() => {
+  const avgAmount = activeSuggestion.value?.avgAmount
+  if (avgAmount === undefined) return null
+  return (currentFrequency.value - frequency.value) * avgAmount
+})
 
-const fallbackGoals = [
-  {
-    key: 'travel',
-    label: '여행 자금',
-    desc: '즐거운 여행을 위한 자금이에요.',
-    saved: 310_000,
-    target: 1_000_000,
-    icon: IconTargetArrow,
-  },
-  {
-    key: 'emergency',
-    label: '비상금',
-    desc: '예기치 않은 상황을 대비하는 자금이에요.',
-    saved: 180_000,
-    target: 500_000,
-    icon: IconShieldLock,
-  },
-  {
-    key: 'free',
-    label: '자유 자금',
-    desc: '나를 위한 자유로운 지출을 위한 자금이에요.',
-    saved: 92_000,
-    target: 300_000,
-    icon: IconGift,
-  },
-]
-const goals = computed(() =>
-  serverGoals.value.length > 0
-    ? serverGoals.value.map((goal) => ({
-        key: String(goal.id),
-        label: goal.name,
-        desc: `${goal.name} 목표예요.`,
-        saved: goal.currentAmount + goal.adoptedSaving,
-        target: goal.targetAmount,
-        icon: IconTargetArrow,
-      }))
-    : fallbackGoals,
+/**
+ * 목표는 `GET /goals`가 준 것만 쓴다. 목록이 비면 고를 목표가 없고
+ * `hasServerGoal === false` 분기("목표 연결 없이 채택")만 남는다.
+ */
+const goalKey = ref('')
+const selectedGoal = computed<Goal | null>(
+  () =>
+    serverGoals.value.find((goal) => String(goal.id) === goalKey.value) ??
+    serverGoals.value[0] ??
+    null,
 )
-const goalKey = ref('travel')
-const selectedGoal = computed(
-  () => goals.value.find((goal) => goal.key === goalKey.value) ?? goals.value[0]!,
+const hasServerGoal = computed(() => selectedGoal.value !== null)
+/** 05 §2 `GET /goals` — 이미 채택한 절감액까지 더한 값이 현재 적립액이다. */
+const goalSaved = computed(() =>
+  selectedGoal.value ? selectedGoal.value.currentAmount + selectedGoal.value.adoptedSaving : 0,
 )
-const hasServerGoal = computed(() => serverGoals.value.length > 0)
 const goalBefore = computed(() =>
-  Math.round((selectedGoal.value.saved / selectedGoal.value.target) * 100),
+  selectedGoal.value ? Math.round((goalSaved.value / selectedGoal.value.targetAmount) * 100) : null,
 )
 const goalAfter = computed(() =>
-  Math.round(((selectedGoal.value.saved + expectedSaving.value) / selectedGoal.value.target) * 100),
+  selectedGoal.value
+    ? Math.round(
+        ((goalSaved.value + (expectedSaving.value ?? 0)) / selectedGoal.value.targetAmount) * 100,
+      )
+    : null,
 )
 
-const profileTags = [
-  {
-    label: '가치 중심 소비',
-    icon: IconShieldCheck,
-    cardClass: 'bg-profile-green',
-    iconClass: 'bg-success/15 text-success',
-  },
-  {
-    label: '편의성 우선',
-    icon: IconClock,
-    cardClass: 'bg-profile-orange',
-    iconClass: 'bg-preview-yellow-ink/15 text-preview-yellow-ink',
-  },
-  {
-    label: '변동 지출 편중',
-    icon: IconChartPie,
-    cardClass: 'bg-profile-red',
-    iconClass: 'bg-preview-red-ink/15 text-preview-red-ink',
-  },
-]
-
-const fallbackBehaviorSummary = [
-  {
-    label: '친구와 외식',
-    desc: '주 1~2회 외식으로 관계를 즐겨요.',
-    verdict: PRESCRIPTION_LABEL.PROTECT,
-    icon: IconBurger,
-    iconClass: 'bg-profile-green text-success',
-    tagClass: 'bg-success/10 text-success',
-  },
-  {
-    label: '카페',
-    desc: '일품 커피를 즐겨요.',
-    verdict: PRESCRIPTION_LABEL.KEEP,
-    icon: IconCoffee,
-    iconClass: 'bg-profile-blue text-preview-blue-ink',
-    tagClass: 'bg-preview-blue-ink/10 text-preview-blue-ink',
-  },
-  {
-    label: '택시 이용',
-    desc: '교통비 지출이 다소 높은 편이에요.',
-    verdict: PRESCRIPTION_LABEL.MINOR,
-    icon: IconCar,
-    iconClass: 'bg-profile-orange text-preview-yellow-ink',
-    tagClass: 'bg-preview-yellow-ink/10 text-preview-yellow-ink',
-  },
-  {
-    label: '심야 배달',
-    desc: '잦은 심야 배달이 지출을 늘려요.',
-    verdict: PRESCRIPTION_LABEL.PRIORITY,
-    icon: IconMoped,
-    iconClass: 'bg-profile-red text-preview-red-ink',
-    tagClass: 'bg-preview-red-ink/10 text-preview-red-ink',
-  },
-]
 const analysisData = ref<Analysis | null>(null)
+
+/**
+ * 지도는 보류 점에 배지를 달지 않지만(FR-07-02 · `VERDICT_BADGE.pending`은 `null`),
+ * 소비 분석 요약은 보류 묶음을 한 행으로 세어 보여 준다 (03 W-7).
+ */
+const PENDING_LABEL = '보류'
+
+/** `share`는 월 예산이 분모다. 예산이 없으면 `null`이고 비중을 그리지 않는다 (05 §2 E-73). */
+function sharePercent(share: number | null) {
+  return share === null ? null : Math.round(share * 100)
+}
+
+/**
+ * 03 W-7 1-1 판정 라벨별 요약 — 묶음 수 · 월 합계 · 비중.
+ * `byVerdict`는 해당 묶음이 없어도 항상 `SUSTAIN` · `ADJUST` 2행이고, 여기에 보류 1행을 더한다 (E-73).
+ */
+const verdictSummary = computed(() => {
+  const analysis = analysisData.value
+  if (!analysis) return []
+  const rows = analysis.byVerdict.map((row) => {
+    const tone = verdictToneOf(row.verdict)
+    return {
+      tone,
+      label: VERDICT_BADGE[tone] ?? PENDING_LABEL,
+      clusterCount: row.clusterCount,
+      monthlyTotalAmount: row.monthlyTotalAmount,
+      sharePercent: sharePercent(row.share),
+    }
+  })
+  return [
+    ...rows,
+    {
+      tone: 'pending' as const,
+      label: PENDING_LABEL,
+      clusterCount: analysis.pending.clusterCount,
+      monthlyTotalAmount: analysis.pending.monthlyTotalAmount,
+      sharePercent: sharePercent(analysis.pending.share),
+    },
+  ]
+})
+
+/**
+ * 03 W-7 1-2 카테고리별 요약. 배지는 **판정 2종 + 보류**다 —
+ * 처방 5종(Great!/Hmm! …)은 지도 상세 패널 전용이다 (01 E-4 · E-76 · 03 §7).
+ * `byCategory`가 비면 서버 `highlight`가 이미 안내하므로 목록은 비워 둔다 (E-89 · E-91).
+ */
 const behaviorSummary = computed(() => {
-  if (!analysisData.value || analysisData.value.byCategory.length === 0)
-    return fallbackBehaviorSummary
+  if (!analysisData.value) return []
 
   return analysisData.value.byCategory.slice(0, 4).map((category) => {
-    const adjust = category.verdict === 'ADJUST'
+    const tone = verdictToneOf(category.verdict)
     return {
       label: category.category,
       desc: `이번 달 ${category.monthlyTotalAmount.toLocaleString('ko-KR')}원을 사용했어요.`,
-      verdict: adjust ? PRESCRIPTION_LABEL.PRIORITY : PRESCRIPTION_LABEL.KEEP,
-      icon: adjust ? IconMoped : IconCoffee,
-      iconClass: adjust
-        ? 'bg-profile-red text-preview-red-ink'
-        : 'bg-profile-blue text-preview-blue-ink',
-      tagClass: adjust
-        ? 'bg-preview-red-ink/10 text-preview-red-ink'
-        : 'bg-preview-blue-ink/10 text-preview-blue-ink',
+      badge: VERDICT_BADGE[tone] ?? PENDING_LABEL,
+      tone,
     }
   })
 })
@@ -436,11 +399,13 @@ onMounted(() => {
   if (step.value === 'improvement') void loadImprovement()
 })
 
-async function startAnalysis() {
-  chatStore.activate('analysis')
-  if (chatStore.steps.analysis !== 'menu' || requestPending.value) return
+/**
+ * 소비 분석 화면은 `GET /analysis` 응답으로만 그린다 — 목업 폴백이 없으므로(#48)
+ * 조정안에서 넘어온 경우처럼 아직 응답이 없으면 여기서 한 번 부른다.
+ */
+async function ensureAnalysis() {
+  if (analysisData.value) return
   requestPending.value = true
-  say('user', '제 소비를 분석해주세요')
   try {
     analysisData.value = await getAnalysis()
     say('ai', analysisData.value.highlight || '이번 달 소비 패턴을 분석했어요.', qnaImage)
@@ -453,6 +418,13 @@ async function startAnalysis() {
   } finally {
     requestPending.value = false
   }
+}
+
+async function startAnalysis() {
+  chatStore.activate('analysis')
+  if (chatStore.steps.analysis !== 'menu' || requestPending.value) return
+  say('user', '제 소비를 분석해주세요')
+  await ensureAnalysis()
   chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
@@ -717,6 +689,7 @@ async function rejectSuggestion() {
   }
   say('user', '제안을 거절할게요')
   say('ai', '알겠어요! 필요할 때 언제든 다시 도와드릴게요 🙂', aiSmallAvatarImage)
+  await ensureAnalysis()
   chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
@@ -744,10 +717,11 @@ async function confirmAllocate() {
   say(
     'user',
     hasServerGoal.value
-      ? `${selectedGoal.value.label}에 연결할게요`
+      ? `${selectedGoal.value?.name}에 연결할게요`
       : '목표 연결 없이 제안만 채택할게요',
   )
   say('ai', '마지막으로 이번 소비 상황을 요약해드릴게요.', qnaImage)
+  await ensureAnalysis()
   chatStore.analysisTimelineBreak = chatStore.histories.analysis.length
   step.value = 'analysis'
 }
@@ -1274,8 +1248,17 @@ async function apiErrorMessage(error: unknown, fallback: string) {
                 />
               </span>
               <p class="text-ink mt-2 text-[14px] font-semibold">예상 절감액</p>
-              <p class="text-brand mt-1 text-base font-bold">
+              <p
+                v-if="expectedSaving !== null"
+                class="text-brand mt-1 text-base font-bold"
+              >
                 월 {{ expectedSaving.toLocaleString('ko-KR') }}원
+              </p>
+              <p
+                v-else
+                class="text-ink-muted mt-1 text-xs leading-5"
+              >
+                제안 없음
               </p>
             </div>
             <div
@@ -1290,7 +1273,7 @@ async function apiErrorMessage(error: unknown, fallback: string) {
                 />
               </span>
 
-              <p class="text-ink mt-2 text-[14px] font-semibold">{{ selectedGoal.label }} 달성률</p>
+              <p class="text-ink mt-2 text-[14px] font-semibold">{{ selectedGoal?.name }} 달성률</p>
               <p class="text-ink mt-1 text-sm font-bold">
                 {{ goalBefore }}% → <span class="text-brand text-xl">{{ goalAfter }}%</span>
               </p>
@@ -1408,69 +1391,76 @@ async function apiErrorMessage(error: unknown, fallback: string) {
           {{ entry.text }}
         </ChatBubble>
         <section class="bg-surface flex flex-col gap-5 rounded-3xl p-5">
-          <h2 class="text-ink text-base font-bold leading-[1.45]">
-            AI가 분석한 당신의<br />소비 프로필이에요
-          </h2>
+          <template v-if="verdictSummary.length > 0">
+            <h2 class="text-ink text-base font-bold leading-[1.45]">판정 라벨별 요약</h2>
 
-          <div class="grid grid-cols-3 gap-2">
-            <div
-              v-for="tag in profileTags"
-              :key="tag.label"
-              class="flex h-[82px] min-w-0 flex-col items-center gap-2 rounded-2xl p-3"
-              :class="tag.cardClass"
-            >
-              <span
-                class="flex size-9 shrink-0 items-center justify-center rounded-[18px]"
-                :class="tag.iconClass"
+            <div class="flex flex-col gap-2">
+              <div
+                v-for="row in verdictSummary"
+                :key="row.label"
+                class="flex min-w-0 items-center justify-between gap-3 rounded-2xl px-3.5 py-3"
+                :class="VERDICT_SOFT_BG_CLASS[row.tone]"
               >
-                <component
-                  :is="tag.icon"
-                  :size="20"
-                  :stroke-width="1.7"
-                />
-              </span>
-              <p class="text-ink w-full whitespace-nowrap text-center text-xs font-bold">
-                {{ tag.label }}
-              </p>
-            </div>
-          </div>
-
-          <div class="bg-line h-px w-full" />
-
-          <h3 class="text-ink text-base font-bold">주요 소비 행동 분석</h3>
-
-          <div class="flex flex-col gap-3">
-            <div
-              v-for="behavior in behaviorSummary"
-              :key="behavior.label"
-              class="border-line flex items-center justify-between border-b pb-3"
-            >
-              <div class="flex min-w-0 items-center gap-3">
                 <span
-                  class="flex size-9 shrink-0 items-center justify-center rounded-[18px]"
-                  :class="behavior.iconClass"
+                  class="shrink-0 text-sm font-bold"
+                  :class="VERDICT_TEXT_CLASS[row.tone]"
                 >
-                  <component
-                    :is="behavior.icon"
-                    :size="18"
-                    :stroke-width="1.7"
-                  />
+                  {{ row.label }}
                 </span>
-                <span class="min-w-0">
-                  <strong class="text-ink block text-sm">{{ behavior.label }}</strong>
-                  <span class="text-ink-faint mt-0.5 block truncate text-[11px]">
-                    {{ behavior.desc }}
-                  </span>
+                <span class="text-ink-muted min-w-0 text-right text-[11px] leading-4">
+                  <strong class="text-ink text-[13px] font-bold">
+                    {{ row.clusterCount }}개 묶음
+                  </strong>
+                  <br />
+                  {{ row.monthlyTotalAmount.toLocaleString('ko-KR') }}원<template
+                    v-if="row.sharePercent !== null"
+                    >&nbsp;· 예산의 {{ row.sharePercent }}%</template
+                  >
                 </span>
               </div>
-              <span
-                class="ml-2 shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold"
-                :class="behavior.tagClass"
-              >
-                {{ behavior.verdict }}
-              </span>
             </div>
-          </div>
+          </template>
+
+          <template v-if="behaviorSummary.length > 0">
+            <div class="bg-line h-px w-full" />
+
+            <h3 class="text-ink text-base font-bold">카테고리별 요약</h3>
+
+            <div class="flex flex-col gap-3">
+              <div
+                v-for="behavior in behaviorSummary"
+                :key="behavior.label"
+                class="border-line flex items-center justify-between border-b pb-3"
+              >
+                <div class="flex min-w-0 items-center gap-3">
+                  <span
+                    class="flex size-9 shrink-0 items-center justify-center rounded-[18px]"
+                    :class="[
+                      VERDICT_SOFT_BG_CLASS[behavior.tone],
+                      VERDICT_TEXT_CLASS[behavior.tone],
+                    ]"
+                  >
+                    <IconChartPie
+                      :size="18"
+                      :stroke-width="1.7"
+                    />
+                  </span>
+                  <span class="min-w-0">
+                    <strong class="text-ink block text-sm">{{ behavior.label }}</strong>
+                    <span class="text-ink-faint mt-0.5 block truncate text-[11px]">
+                      {{ behavior.desc }}
+                    </span>
+                  </span>
+                </div>
+                <span
+                  class="ml-2 shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold"
+                  :class="[VERDICT_SOFT_BG_CLASS[behavior.tone], VERDICT_TEXT_CLASS[behavior.tone]]"
+                >
+                  {{ behavior.badge }}
+                </span>
+              </div>
+            </div>
+          </template>
 
           <PrimaryButton
             arrow
