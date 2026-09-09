@@ -13,7 +13,7 @@ const tabs = [
 </script>
 
 <template>
-  <nav class="border-line bg-surface flex shrink-0 border-t">
+  <nav class="border-line bg-surface flex shrink-0 border-t pb-[env(safe-area-inset-bottom)]">
     <RouterLink
       v-for="tab in tabs"
       :key="tab.name"
