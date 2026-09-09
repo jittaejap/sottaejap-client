@@ -37,7 +37,9 @@ export function tagLabels(options: readonly TagOption<string>[]): readonly strin
   return options.map((option) => option.label)
 }
 
-/** 칩에서 고른 라벨을 전송 값으로 되돌린다. 라벨은 같은 목록에서 나오므로 항상 찾는다. */
+/** 칩에서 고른 라벨을 전송 값으로 되돌린다. 목록 밖 라벨은 호출부 버그이므로 바로 던진다. */
 export function tagValue<V extends string>(options: readonly TagOption<V>[], label: string): V {
-  return options.find((option) => option.label === label)!.value
+  const option = options.find((item) => item.label === label)
+  if (!option) throw new Error('알 수 없는 라벨: ' + label)
+  return option.value
 }

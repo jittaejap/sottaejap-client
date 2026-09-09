@@ -38,6 +38,7 @@ describe('표준 태그 라벨·값 (#16)', () => {
     expect(tagValue(PURPOSE_OPTIONS, '휴식 · 취미')).toBe('휴식·취미')
     expect(tagValue(PURPOSE_OPTIONS, '만남 · 사교')).toBe('만남·사교')
     expect(tagValue(COMPANION_OPTIONS, '혼자')).toBe('혼자')
+    expect(() => tagValue(PURPOSE_OPTIONS, '야식')).toThrow('알 수 없는 라벨: 야식')
   })
 
   it('만족도 라벨을 서버 enum으로 되돌린다', () => {
