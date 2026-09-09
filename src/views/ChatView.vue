@@ -680,10 +680,10 @@ async function finishRetrospect() {
   chatStore.candidates = chatStore.candidates.filter(
     (c) => c.transactionId !== candidate.transactionId,
   )
-  chatStore.selectedCandidate = null
-  chatStore.resetReflection()
   reasonExpanded.value = false
   say('ai', '회고를 저장했어요. 이어지는 소비 분석에서 행동 조정안을 확인해 주세요.', happyAvatar)
+  // 저장이 끝난 거래를 계속 붙들지 않는다 — 회고 채널로 돌아오면 후보 선택부터다.
+  backToCandidates()
   chatStore.activate('analysis')
   if (chatStore.histories.analysis.length === 0) {
     say('ai', '방금 마친 회고를 바탕으로 행동 조정안을 정리해봤어요.', searchAvatar)

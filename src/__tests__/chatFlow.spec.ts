@@ -274,8 +274,32 @@ describe('AI채팅 회고 흐름', () => {
     expect(wrapper.find('button[aria-pressed="true"]').text()).toBe('소비 분석')
 
     await click(wrapper, '회고 등록')
-    expect(wrapper.text()).toContain('회고 마무리하기')
+    // 대화 이력은 그대로 남는다
+    expect(wrapper.text()).toContain('배달의민족 23,000원 회고할게요')
     expect(wrapper.text()).not.toContain('AI가 분석한 최적의 추천 빈도')
+  })
+
+  it('저장을 마치면 회고 채널은 후보 선택으로 돌아간다', async () => {
+    const { wrapper } = await mountChat()
+
+    await runRetrospect(wrapper)
+    await click(wrapper, '회고 등록')
+
+    // 저장이 끝난 거래를 가리키는 마무리 버튼이 남아 있으면 눌러도 아무 일도 일어나지 않는다.
+    // 같은 문구가 대화 이력의 말풍선으로는 남으므로 버튼만 본다.
+    const buttonLabels = wrapper.findAll('button').map((button) => button.text().trim())
+    expect(buttonLabels).not.toContain('회고 마무리하기')
+    expect(buttonLabels).toContain('선택한 거래로 회고 시작')
+  })
+
+  it('마지막 후보를 저장하면 회고 채널이 S10 빈 상태가 된다', async () => {
+    vi.mocked(getRetrospectCandidates).mockResolvedValue([CANDIDATE])
+    const { wrapper } = await mountChat()
+
+    await runRetrospect(wrapper)
+    await click(wrapper, '회고 등록')
+
+    expect(wrapper.text()).toContain('지금은 돌아볼 거래가 없어요')
   })
 
   it('소비 분석 결과와 안내 뒤에 후속 질문과 응답을 시간순으로 표시한다', async () => {
