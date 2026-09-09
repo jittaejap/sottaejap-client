@@ -8,6 +8,7 @@ import ChatView from '@/views/ChatView.vue'
 import { ApiError } from '@/api/apiError'
 import {
   adoptSuggestion,
+  askAnalysis,
   chatRetrospect,
   getAnalysis,
   getRetrospectCandidates,
@@ -105,6 +106,7 @@ vi.mock('@/api/service', async (importOriginal) => ({
   adoptSuggestion: vi.fn().mockResolvedValue({}),
   rejectSuggestionById: vi.fn().mockResolvedValue({}),
   askFinance: vi.fn().mockResolvedValue({ reply: '금융 Q&A 테스트 답변', fallback: false }),
+  askAnalysis: vi.fn(),
   getRetrospectCandidates: vi.fn(),
   chatRetrospect: vi.fn(),
   saveRetrospect: vi.fn(),
@@ -112,6 +114,10 @@ vi.mock('@/api/service', async (importOriginal) => ({
 
 beforeEach(() => {
   vi.mocked(getAnalysis).mockReset().mockResolvedValue(EMPTY_ANALYSIS)
+  vi.mocked(askAnalysis).mockReset().mockResolvedValue({
+    reply: '배달 묶음은 만족도가 가장 낮아서 조정 대상이에요.',
+    fallback: false,
+  })
   vi.mocked(getRetrospectCandidates).mockReset().mockResolvedValue([CANDIDATE, SECOND_CANDIDATE])
   vi.mocked(chatRetrospect).mockReset().mockResolvedValue(INTRO_REPLY)
   vi.mocked(saveRetrospect).mockReset().mockResolvedValue({})
@@ -391,20 +397,135 @@ describe('AI채팅 회고 흐름', () => {
     const { wrapper } = await mountChat()
 
     await click(wrapper, '소비 분석')
-    await type(wrapper, '비상금은 얼마나 모아야 하나요?')
+    await type(wrapper, '배달은 왜 조정 대상이에요?')
 
     const text = wrapper.text()
     const introIndex = text.indexOf('아직 돌아본 소비가 없어요')
     const analysisIndex = text.indexOf('판정 라벨별 요약')
     const guideIndex = text.indexOf('금융에 대해 궁금한 게 있다면')
-    const questionIndex = text.indexOf('비상금은 얼마나 모아야 하나요?')
-    const replyIndex = text.indexOf('소비 분석에 대한 질문을 확인했어요')
+    const questionIndex = text.indexOf('배달은 왜 조정 대상이에요?')
+    const replyIndex = text.indexOf('배달 묶음은 만족도가 가장 낮아서 조정 대상이에요.')
 
     expect(introIndex).toBeGreaterThanOrEqual(0)
     expect(analysisIndex).toBeGreaterThan(introIndex)
     expect(guideIndex).toBeGreaterThan(analysisIndex)
     expect(questionIndex).toBeGreaterThan(guideIndex)
     expect(replyIndex).toBeGreaterThan(questionIndex)
+    // 고정 문장은 사라졌다 (#22).
+    expect(text).not.toContain('현재 분석 맥락에서 이어서 살펴볼게요')
+  })
+})
+
+describe('소비 분석 대화 턴 (05 §2 #28 POST /chat/analysis)', () => {
+  it('질문을 POST /chat/analysis로 보내고 응답을 그대로 표시한다 (#22)', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    await type(wrapper, '배달은 왜 조정 대상이에요?')
+
+    expect(askAnalysis).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(askAnalysis).mock.calls[0]![0]).toBe('배달은 왜 조정 대상이에요?')
+    expect(wrapper.text()).toContain('배달 묶음은 만족도가 가장 낮아서 조정 대상이에요.')
+  })
+
+  it('recentMessages는 오름차순이고 ai를 assistant로 바꾸며 방금 보낸 질문은 뺀다 (#22)', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    await type(wrapper, '첫 질문이에요')
+    await type(wrapper, '두 번째 질문이에요')
+
+    const sent = vi.mocked(askAnalysis).mock.calls[1]![1]
+    expect(sent.every((message) => message.role === 'user' || message.role === 'assistant')).toBe(
+      true,
+    )
+    expect(sent.every((message) => message.content.length > 0)).toBe(true)
+    // 마지막 원소가 가장 최근 발화다 (E-87).
+    expect(sent[sent.length - 1]!.content).toBe('배달 묶음은 만족도가 가장 낮아서 조정 대상이에요.')
+    expect(sent[sent.length - 1]!.role).toBe('assistant')
+    // 오름차순 — 첫 질문이 그 앞에 온다.
+    expect(sent.map((message) => message.content)).toContain('첫 질문이에요')
+    // 방금 보낸 질문은 message로만 간다.
+    expect(sent.some((message) => message.content === '두 번째 질문이에요')).toBe(false)
+    // 소비 분석 결과 안내(highlight)가 assistant로 실린다.
+    expect(sent[0]!.role).toBe('user')
+    expect(sent[0]!.content).toBe('제 소비를 분석해주세요')
+  })
+
+  it('보내기 전에 마지막 6건으로 자른다 (E-87 · E-109)', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    // 턴마다 user 1건 + assistant 1건이 쌓인다.
+    for (const question of ['질문1', '질문2', '질문3', '질문4', '질문5'])
+      await type(wrapper, question)
+
+    const calls = vi.mocked(askAnalysis).mock.calls
+    const sent = calls[calls.length - 1]![1]
+    expect(sent).toHaveLength(6)
+  })
+
+  it('assistant 내용은 코드 포인트 2,000자로 자른다 (E-110)', async () => {
+    vi.mocked(askAnalysis).mockResolvedValueOnce({ reply: '🍜'.repeat(2_500), fallback: false })
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    await type(wrapper, '길게 답해주세요')
+    await type(wrapper, '이어서 물어볼게요')
+
+    const sent = vi.mocked(askAnalysis).mock.calls[1]![1]
+    const longest = sent.find((message) => message.content.startsWith('🍜'))!
+    expect([...longest.content]).toHaveLength(2_000)
+  })
+
+  it('fallback: true면 템플릿 안내를 덧붙이고, false면 안내문을 그대로 보여 준다 (E-107 · E-108)', async () => {
+    vi.mocked(askAnalysis).mockResolvedValueOnce({
+      reply: '기본 안내로 답변드릴게요.',
+      fallback: true,
+    })
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    await type(wrapper, '배달은 왜 조정 대상이에요?')
+    expect(wrapper.text()).toContain('AI 연결이 원활하지 않아 기본 안내로 답변드려요.')
+
+    vi.mocked(askAnalysis).mockResolvedValueOnce({
+      reply: '아직 돌아본 소비가 없어요. 몇 건만 회고하면 분석을 보여드릴 수 있어요.',
+      fallback: false,
+    })
+    await type(wrapper, '그럼 뭘 하면 되나요?')
+    const text = wrapper.text()
+    const guideIndex = text.indexOf('몇 건만 회고하면 분석을 보여드릴 수 있어요.')
+    expect(guideIndex).toBeGreaterThanOrEqual(0)
+    // 안내문 앞에 템플릿 배너 문구가 붙지 않는다.
+    expect(text.slice(0, guideIndex)).not.toContain(
+      'AI 연결이 원활하지 않아 기본 안내로 답변드려요. 아직',
+    )
+  })
+
+  it('400 INVALID_INPUT과 503 LLM_UNAVAILABLE을 코드로 갈라 안내한다', async () => {
+    vi.mocked(askAnalysis).mockRejectedValueOnce(new ApiError('INVALID_INPUT', 400, '입력값 오류'))
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    await type(wrapper, '배달은 왜 조정 대상이에요?')
+    expect(wrapper.text()).toContain('입력값을 확인해 주세요')
+
+    vi.mocked(askAnalysis).mockRejectedValueOnce(
+      new ApiError('LLM_UNAVAILABLE', 503, 'AI 응답 없음'),
+    )
+    await type(wrapper, '다시 물어볼게요')
+    expect(wrapper.text()).toContain('AI 연결이 원활하지 않아 지금은 기본 안내 모드로 답변드릴게요')
+  })
+
+  it('message가 500자를 넘으면 서버를 부르지 않는다 (E-112)', async () => {
+    const { wrapper } = await mountChat()
+
+    await click(wrapper, '소비 분석')
+    await type(wrapper, '가'.repeat(501))
+
+    expect(askAnalysis).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('메시지는 공백 없이 500자 이내로 입력해 주세요.')
   })
 })
 

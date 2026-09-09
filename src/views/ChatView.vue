@@ -48,11 +48,12 @@ import happyAvatar from '@/assets/images/ai/04_happy_cheeks_hat.png'
 import cheerAvatar from '@/assets/images/ai/07_cheer_hat.png'
 import thinkingAvatar from '@/assets/images/ai/05_thinking_hat.png'
 import searchAvatar from '@/assets/images/ai/09_search_hat.png'
-import { useChatStore, type ChatStep } from '@/stores/chat'
+import { useChatStore, type ChatEntry, type ChatStep } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { ApiError } from '@/api/apiError'
 import {
   adoptSuggestion,
+  askAnalysis,
   askFinance,
   chatRetrospect,
   getAnalysis,
@@ -193,19 +194,27 @@ const RECENT_MESSAGE_LIMIT = 6
 const CONTENT_LIMIT = { user: 500, assistant: 2_000 } as const
 
 /**
- * 05 §2 #11 `recentMessages` — 오름차순(오래된 → 최신) · 보내기 전 마지막 6건.
- * `ai`는 `assistant`로 바꾸고 빈 내용은 뺀다. 어기면 400 `INVALID_INPUT`이고 서버는 AI를 부르지 않는다.
- * 지금 회고 중인 거래의 대화만 싣는다 — 서버는 이 이력으로 `task_context`를 만든다.
+ * 05 §2 #11 · #28 `recentMessages` — 오름차순(오래된 → 최신) · **보내기 전** 마지막 6건.
+ * `ai`는 `assistant`로 바꾸고 빈 내용은 뺀다. 규격 밖 항목이 하나라도 있으면 서버는
+ * AI를 부르지 않고 400 `INVALID_INPUT`을 낸다 (01 E-109).
+ *
+ * 서버의 항목 검증은 컨트롤러 바인딩에서, 6건 절단(E-87)은 서비스에서 일어난다.
+ * 이력을 통째로 보내면 **AI에 닿지도 않을 오래된 항목** 하나 때문에 요청 전체가 400이므로
+ * 클라이언트가 먼저 자르고 먼저 검사한다 (server PR #59 리뷰).
  */
-function recentMessages(): RetrospectChatMessage[] {
-  return chatStore.histories.retrospect
-    .slice(chatStore.retrospectHistoryStart)
+function recentMessagesFrom(entries: ChatEntry[]): RetrospectChatMessage[] {
+  return entries
     .map((entry) => {
       const role = entry.role === 'ai' ? ('assistant' as const) : ('user' as const)
       return { role, content: [...entry.text.trim()].slice(0, CONTENT_LIMIT[role]).join('') }
     })
     .filter((message) => message.content.length > 0)
     .slice(-RECENT_MESSAGE_LIMIT)
+}
+
+/** 지금 회고 중인 거래의 대화만 싣는다 — 서버는 이 이력으로 `task_context`를 만든다. */
+function recentMessages(): RetrospectChatMessage[] {
+  return recentMessagesFrom(chatStore.histories.retrospect.slice(chatStore.retrospectHistoryStart))
 }
 
 const purposeOptions = tagLabels(PURPOSE_OPTIONS)
@@ -452,7 +461,11 @@ async function onSend(text: string) {
     return
   }
   // 방금 보낼 메시지는 이력에서 빼야 하므로 대화에 쌓기 전에 먼저 모은다.
-  const recent = recentMessages()
+  // (`say('user', …)`가 분기 앞에 있어, 뒤에 모으면 이 질문이 `message`와 이력 양쪽에 실린다.)
+  const recent =
+    activeMode.value === 'analysis'
+      ? recentMessagesFrom(chatStore.histories.analysis)
+      : recentMessages()
   say('user', message)
   if (activeMode.value === 'qna') {
     requestPending.value = true
@@ -476,7 +489,29 @@ async function onSend(text: string) {
       requestPending.value = false
     }
   } else if (activeMode.value === 'analysis') {
-    say('ai', '소비 분석에 대한 질문을 확인했어요. 현재 분석 맥락에서 이어서 살펴볼게요.')
+    requestPending.value = true
+    try {
+      // `fallback: false`로 오는 안내문(숫자 가드 · 묶음 없음, E-107 · E-108)은 그대로 보여 준다.
+      const response = await askAnalysis(message, recent)
+      say(
+        'ai',
+        response.fallback
+          ? `AI 연결이 원활하지 않아 기본 안내로 답변드려요. ${response.reply}`
+          : response.reply,
+        qnaImage,
+      )
+    } catch (error) {
+      say(
+        'ai',
+        await apiErrorMessage(
+          error,
+          '소비 분석 답변을 불러오지 못했어요. 잠시 후 다시 질문해주세요.',
+        ),
+        qnaImage,
+      )
+    } finally {
+      requestPending.value = false
+    }
   } else {
     const candidate = chatStore.selectedCandidate
     if (!candidate) {
