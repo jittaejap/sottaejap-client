@@ -211,3 +211,16 @@ export async function chatRetrospect(input: {
   const response = await httpClient.post<RetrospectChatResult>('/retrospects/chat', input)
   return response.data
 }
+
+/**
+ * 05 §2 #28 `POST /chat/analysis` (01 E-104) — 상태 없는 프록시다.
+ * 서버는 이력을 저장하지 않으므로 소비 분석 채널의 최근 대화를 클라이언트가 들고 다닌다.
+ * `message`는 1~500자, `recentMessages`는 오름차순이고 서버가 최근 6건만 AI에 넘긴다 (E-87).
+ */
+export async function askAnalysis(message: string, recentMessages: RetrospectChatMessage[]) {
+  const response = await httpClient.post<{ reply: string; fallback: boolean }>('/chat/analysis', {
+    message,
+    recentMessages,
+  })
+  return response.data
+}
