@@ -55,6 +55,25 @@ const spendingChangeRate = computed(() => {
   return Math.round(((current - previous) / previous) * 100)
 })
 
+const savingsSummary = computed(() => {
+  const amount = monthlyReport.value?.savedAmount
+
+  if (amount === null || amount === undefined) {
+    return {
+      label: '이번 달 절감액',
+      detailLabel: '이번 달 총 절감액',
+      amount: '데이터 없음',
+    }
+  }
+
+  const isExtraSpending = amount < 0
+  return {
+    label: isExtraSpending ? '이번 달 추가 지출' : '이번 달 절감액',
+    detailLabel: isExtraSpending ? '이번 달 총 추가 지출' : '이번 달 총 절감액',
+    amount: `${Math.abs(amount).toLocaleString('ko-KR')}원`,
+  }
+})
+
 onMounted(async () => {
   const [goalsResult, reportResult, suggestionsResult, notificationsResult] =
     await Promise.allSettled([
@@ -241,16 +260,11 @@ function openBehavior(behaviorId: number) {
                 class="border-line bg-surface flex h-[126px] flex-col items-start gap-2.5 rounded-[20px] border p-4 text-left"
                 @click="subview = 'savings'"
               >
-                <span class="text-ink-faint text-[13px] font-medium">이번 달 절감액</span>
+                <span class="text-ink-faint text-[13px] font-medium">{{
+                  savingsSummary.label
+                }}</span>
                 <span class="text-brand flex items-baseline gap-0.5 font-bold">
-                  <span class="text-[22px]">
-                    {{
-                      monthlyReport?.savedAmount === null ||
-                      monthlyReport?.savedAmount === undefined
-                        ? '데이터 없음'
-                        : `${monthlyReport.savedAmount.toLocaleString('ko-KR')}원`
-                    }}
-                  </span>
+                  <span class="text-[22px]">{{ savingsSummary.amount }}</span>
                 </span>
                 <span
                   v-if="spendingChangeRate !== null"
@@ -437,15 +451,15 @@ function openBehavior(behaviorId: number) {
             <AppCard>
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-ink-muted text-sm">이번 달 총 절감액</p>
+                  <p class="text-ink-muted text-sm">{{ savingsSummary.detailLabel }}</p>
                   <p class="text-brand text-3xl font-extrabold">
-                    {{ (monthlyReport?.savedAmount ?? 0).toLocaleString('ko-KR')
-                    }}<span class="text-lg">원</span>
+                    {{ savingsSummary.amount }}
                   </p>
                   <span
+                    v-if="spendingChangeRate !== null"
                     class="text-satisfaction-high bg-satisfaction-high/10 mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
                   >
-                    전월 대비 +12%
+                    전월 대비 {{ spendingChangeRate > 0 ? '+' : '' }}{{ spendingChangeRate }}%
                   </span>
                 </div>
                 <img

@@ -96,7 +96,9 @@ describe('만족도 지도 이동', () => {
     await router.push('/')
     await router.isReady()
     const pushSpy = vi.spyOn(router, 'push')
-    const wrapper = mount(HomeView, { global: { plugins: [createPinia(), router] } })
+    const wrapper = mount(HomeView, {
+      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
+    })
 
     const behaviorButton = wrapper
       .findAll('button')
@@ -136,11 +138,93 @@ describe('만족도 지도 이동', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/')
     await router.isReady()
-    const wrapper = mount(HomeView, { global: { plugins: [createPinia(), router] } })
+    const wrapper = mount(HomeView, {
+      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
+    })
     await flushPromises()
 
     expect(wrapper.text()).toContain('2%')
     expect(wrapper.text()).toContain('데이터 없음')
     expect(wrapper.text()).not.toContain('전월 대비')
+
+    const savingsButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('이번 달 절감액'))
+    if (!savingsButton) throw new Error('절감액 카드를 찾지 못했습니다.')
+    await savingsButton.trigger('click')
+
+    expect(wrapper.text()).toContain('이번 달 총 절감액')
+    expect(wrapper.text()).toContain('데이터 없음')
+    expect(wrapper.text()).not.toContain('전월 대비')
+  })
+
+  it('홈과 절감액 상세가 같은 실데이터와 증감률을 표시한다', async () => {
+    vi.mocked(getMonthlyReport).mockResolvedValueOnce({
+      yearMonth: '2026-09',
+      finalized: true,
+      totalSpending: 1_200_000,
+      previousTotalSpending: 1_000_000,
+      savedAmount: 42_000,
+      unsatisfiedCount: 0,
+      repeatCount: 0,
+      previousRepeatCount: 0,
+      goalAllocations: [],
+    })
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/')
+    await router.isReady()
+    const wrapper = mount(HomeView, {
+      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('42,000원')
+    expect(wrapper.text()).toContain('전월 대비 +20%')
+
+    const savingsButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('이번 달 절감액'))
+    if (!savingsButton) throw new Error('절감액 카드를 찾지 못했습니다.')
+    await savingsButton.trigger('click')
+
+    expect(wrapper.text()).toContain('이번 달 총 절감액')
+    expect(wrapper.text()).toContain('42,000원')
+    expect(wrapper.text()).toContain('전월 대비 +20%')
+    expect(wrapper.text()).not.toContain('전월 대비 +12%')
+  })
+
+  it('음수 savedAmount는 절감액이 아닌 추가 지출로 표시한다', async () => {
+    vi.mocked(getMonthlyReport).mockResolvedValueOnce({
+      yearMonth: '2026-09',
+      finalized: true,
+      totalSpending: 1_036_000,
+      previousTotalSpending: 1_000_000,
+      savedAmount: -36_000,
+      unsatisfiedCount: 0,
+      repeatCount: 0,
+      previousRepeatCount: 0,
+      goalAllocations: [],
+    })
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/')
+    await router.isReady()
+    const wrapper = mount(HomeView, {
+      global: { plugins: [createPinia(), router], stubs: { WeeklyTrendChart: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('이번 달 추가 지출')
+    expect(wrapper.text()).toContain('36,000원')
+    expect(wrapper.text()).not.toContain('-36,000원')
+
+    const savingsButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('이번 달 추가 지출'))
+    if (!savingsButton) throw new Error('추가 지출 카드를 찾지 못했습니다.')
+    await savingsButton.trigger('click')
+
+    expect(wrapper.text()).toContain('이번 달 총 추가 지출')
+    expect(wrapper.text()).toContain('36,000원')
+    expect(wrapper.text()).not.toContain('이번 달 총 절감액')
   })
 })
