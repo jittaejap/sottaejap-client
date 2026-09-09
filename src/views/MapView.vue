@@ -156,7 +156,9 @@ watch(
     if (routeName === 'map') {
       subview.value = 'map'
       fallbackSelected.value = null
-      selectedId.value = mapStore.sortedPoints[0]?.behaviorId ?? null
+      if (!mapStore.data?.points.some((point) => point.behaviorId === selectedId.value)) {
+        selectedId.value = mapStore.sortedPoints[0]?.behaviorId ?? null
+      }
       return
     }
     const behaviorId = Number(value)

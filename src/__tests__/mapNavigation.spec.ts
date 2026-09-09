@@ -370,6 +370,24 @@ describe('만족도 지도 이동', () => {
     expect(wrapper.text()).toContain('나의 만족도 지도')
   })
 
+  it('지도 안 행동 딥링크에서 뒤로가면 그 점 선택이 유지된다', async () => {
+    vi.mocked(getSatisfactionMap).mockResolvedValueOnce(
+      satisfactionMap([
+        mapPoint({ behaviorId: 42, name: '실제 배달', burdenRatio: 0.3 }),
+        mapPoint({ behaviorId: 7, name: '택시', burdenRatio: 0.05 }),
+      ]),
+    )
+    const router = await mapRouter('/map/behaviors/7')
+    const wrapper = mountMap(router)
+    await flushPromises()
+
+    await wrapper.find('header button').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('map')
+    expect(wrapper.text()).toContain('택시(3)')
+  })
+
   it('지도 밖 행동 상세에서 뒤로가면 실제 지도 첫 점을 다시 선택한다', async () => {
     vi.mocked(getSatisfactionMap).mockResolvedValueOnce(satisfactionMap([mapPoint()]))
     vi.mocked(getBehavior).mockResolvedValueOnce(
