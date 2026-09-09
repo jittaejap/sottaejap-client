@@ -19,10 +19,13 @@ const kakaoRedirectKey = 'sottaejap-kakao-oauth-redirect'
 
 /**
  * 진입 가드가 남긴 `redirect` 쿼리. 로그아웃 상태에서 열었던 경로를 로그인 뒤 그대로 연다.
- * 앱 안 경로(`/`로 시작)만 받는다. `//evil.example`처럼 밖으로 나가는 값은 홈으로 바꾼다.
+ * 문자열 검사 대신 URL 파서로 같은 출처인지 본다. `//evil.example`은 물론 `/\\evil.example`처럼
+ * 파서가 다른 출처로 읽는 값도 홈으로 바꾼다.
  */
 function loginRedirectTarget(value: unknown) {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/'
+  if (typeof value !== 'string') return '/'
+  const url = new URL(value, window.location.origin)
+  return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/'
 }
 
 // 토큰과 `GET /users/me` 결과를 스토어가 함께 보관한다. 진입 가드가 그 값을 근거로 분기한다.

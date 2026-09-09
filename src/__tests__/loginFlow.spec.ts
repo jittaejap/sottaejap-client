@@ -93,8 +93,13 @@ describe('로그인 사용자 상태', () => {
     expect(replaceSpy).toHaveBeenCalledWith('/map/behaviors/7?tab=reviews')
   })
 
-  it('앱 밖으로 나가는 redirect 값은 홈으로 바꾼다', async () => {
-    const replaceSpy = await demoLoginFrom('/login?redirect=%2F%2Fevil.example%2Fphish')
+  it.each([
+    ['//evil.example/phish', '이중 슬래시'],
+    ['/\\evil.example', '백슬래시 — 파서가 슬래시로 읽는다'],
+    ['/\\/evil.example', '백슬래시와 슬래시'],
+    ['/\t/evil.example', '탭 — 파서가 지운다'],
+  ])('앱 밖으로 나가는 redirect 값 %s 은 홈으로 바꾼다 (%s)', async (redirect) => {
+    const replaceSpy = await demoLoginFrom(`/login?redirect=${encodeURIComponent(redirect)}`)
     expect(replaceSpy).toHaveBeenCalledWith('/')
   })
 
