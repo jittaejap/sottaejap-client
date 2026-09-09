@@ -161,7 +161,7 @@ describe('온보딩 표본 회고', () => {
     await selectUpload(wrapper)
     await click(wrapper, '다음 단계로')
 
-    await click(wrapper, '만족했어요')
+    await click(wrapper, '별로예요')
     expect(wrapper.text()).toContain('휴식 · 취미')
     expect(wrapper.text()).toContain('만남 · 사교')
     await click(wrapper, '휴식 · 취미')
@@ -169,7 +169,7 @@ describe('온보딩 표본 회고', () => {
     await click(wrapper, '네')
 
     expect(saveRetrospect).toHaveBeenLastCalledWith(
-      expect.objectContaining({ purpose: '휴식·취미', companion: '가족' }),
+      expect.objectContaining({ satisfaction: 'LOW', purpose: '휴식·취미', companion: '가족' }),
     )
     expect(wrapper.text()).toContain('휴식 · 취미')
     expect(wrapper.text()).not.toContain('휴식·취미')

@@ -18,6 +18,7 @@ import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
 import {
   COMPANION_OPTIONS,
   PURPOSE_OPTIONS,
+  SATISFACTION_OPTIONS,
   tagLabels,
   tagValue,
 } from '@/components/chat/tagOptions'
@@ -94,7 +95,7 @@ const sensitivity = ref<'RELAXED' | 'BALANCED' | 'DETAILED'>('BALANCED')
 
 type ReviewStage = 'satisfaction' | 'purpose' | 'companion' | 'repeat' | 'complete'
 type ReviewAnswer = {
-  satisfaction?: string
+  satisfaction?: Satisfaction
   purpose?: PurposeTag
   companion?: CompanionTag
   repeat?: string
@@ -194,7 +195,7 @@ const allReviewsComplete = computed(
 )
 const hasReviewCandidates = computed(() => reviewTransactions.value.length > 0)
 const reviewOptions = computed<readonly string[]>(() => {
-  if (reviewStage.value === 'satisfaction') return ['만족했어요', '별로예요', '잘 모르겠어요']
+  if (reviewStage.value === 'satisfaction') return tagLabels(SATISFACTION_OPTIONS)
   if (reviewStage.value === 'purpose') return tagLabels(PURPOSE_OPTIONS)
   if (reviewStage.value === 'companion') return tagLabels(COMPANION_OPTIONS)
   if (reviewStage.value === 'repeat') return ['네', '아니오']
@@ -233,7 +234,7 @@ async function answerReview(value: string) {
   reviewMessages.value.push({ role: 'user', text: value })
 
   if (reviewStage.value === 'satisfaction') {
-    reviewAnswers.value.satisfaction = value
+    reviewAnswers.value.satisfaction = tagValue(SATISFACTION_OPTIONS, value)
     reviewStage.value = 'purpose'
   } else if (reviewStage.value === 'purpose') {
     reviewAnswers.value.purpose = tagValue(PURPOSE_OPTIONS, value)
@@ -246,14 +247,9 @@ async function answerReview(value: string) {
     saving.value = true
     saveError.value = ''
     try {
-      const satisfactionMap: Record<string, Satisfaction> = {
-        만족했어요: 'HIGH',
-        별로예요: 'LOW',
-        '잘 모르겠어요': 'UNKNOWN',
-      }
       await saveRetrospect({
         transactionId: currentReviewTransaction.value.id,
-        satisfaction: satisfactionMap[reviewAnswers.value.satisfaction ?? ''] ?? 'UNKNOWN',
+        satisfaction: reviewAnswers.value.satisfaction ?? 'UNKNOWN',
         purpose: reviewAnswers.value.purpose ?? '기타',
         companion: reviewAnswers.value.companion ?? '기타',
         repeatIntent: value === '네',

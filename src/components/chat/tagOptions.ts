@@ -1,4 +1,4 @@
-import { COMPANION_TAG, type CompanionTag, type PurposeTag } from '@/api/enums'
+import { COMPANION_TAG, type CompanionTag, type PurposeTag, type Satisfaction } from '@/api/enums'
 
 /**
  * 표준 태그의 화면 라벨과 전송 값 (#16).
@@ -25,6 +25,13 @@ export const COMPANION_OPTIONS: readonly TagOption<CompanionTag>[] = COMPANION_T
   value,
   label: value,
 }))
+
+/** 만족도 3택 (05 §0 `satisfaction`). 라벨은 화면 문구, 값은 서버 enum이다. */
+export const SATISFACTION_OPTIONS: readonly TagOption<Satisfaction>[] = [
+  { value: 'HIGH', label: '만족했어요' },
+  { value: 'LOW', label: '별로예요' },
+  { value: 'UNKNOWN', label: '잘 모르겠어요' },
+]
 
 export function tagLabels(options: readonly TagOption<string>[]): readonly string[] {
   return options.map((option) => option.label)

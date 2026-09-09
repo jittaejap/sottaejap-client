@@ -31,7 +31,12 @@ import { PRESCRIPTION_LABEL } from '@/components/map/verdictStyle'
 import ChatBubble from '@/components/chat/ChatBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ChatQuickReplies from '@/components/chat/ChatQuickReplies.vue'
-import { COMPANION_OPTIONS, PURPOSE_OPTIONS, tagLabels } from '@/components/chat/tagOptions'
+import {
+  COMPANION_OPTIONS,
+  PURPOSE_OPTIONS,
+  SATISFACTION_OPTIONS,
+  tagLabels,
+} from '@/components/chat/tagOptions'
 import aiAvatarImage from '@/assets/images/ai/01_main_wave_hat.png'
 import aiSmallAvatarImage from '@/assets/images/ai/02_wave_small_hat.png'
 import retrospectImage from '@/assets/images/ai/03_tablet_chat_hat.png'
@@ -169,7 +174,7 @@ const filtered = computed(() =>
 
 const purposeOptions = tagLabels(PURPOSE_OPTIONS)
 const companionOptions = tagLabels(COMPANION_OPTIONS)
-const satisfactionOptions = ['만족했어요', '별로예요', '잘 모르겠어요'] as const
+const satisfactionOptions = tagLabels(SATISFACTION_OPTIONS)
 const repeatOptions = ['네', '아니오'] as const
 
 const activeSuggestion = ref<Suggestion | null>(null)
