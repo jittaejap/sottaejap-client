@@ -42,3 +42,18 @@ export const REASON_CODE = [
   'MANUAL_PICK',
 ] as const
 export type ReasonCode = (typeof REASON_CODE)[number]
+
+/** 표준 태그 7/6종 (01 E-20 · E-41). 저장값·응답값은 이 표기 하나다 — 가운뎃점(U+00B7) 둘레에 공백이 없다. */
+export const PURPOSE_TAG = [
+  '식사',
+  '만남·사교',
+  '휴식·취미',
+  '필수품',
+  '자기계발',
+  '충동',
+  '기타',
+] as const
+export type PurposeTag = (typeof PURPOSE_TAG)[number]
+
+export const COMPANION_TAG = ['혼자', '친구', '가족', '연인', '동료', '기타'] as const
+export type CompanionTag = (typeof COMPANION_TAG)[number]

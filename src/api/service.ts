@@ -1,4 +1,4 @@
-import type { Satisfaction, SuggestionStatus } from '@/api/enums'
+import type { CompanionTag, PurposeTag, Satisfaction, SuggestionStatus } from '@/api/enums'
 import { httpClient } from '@/api/httpClient'
 import type {
   Analysis,
@@ -95,8 +95,8 @@ export async function getRetrospectCandidates(limit: number) {
 export async function saveRetrospect(input: {
   transactionId: number
   satisfaction: Satisfaction
-  purpose: string
-  companion: string
+  purpose: PurposeTag
+  companion: CompanionTag
   repeatIntent: boolean
   source: 'CANDIDATE' | 'ONBOARDING' | 'MANUAL'
 }) {
