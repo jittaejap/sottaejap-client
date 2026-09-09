@@ -12,6 +12,27 @@ import { useChatStore } from '@/stores/chat'
  */
 const accessTokenStorageKey = 'sottaejap-access-token'
 
+/**
+ * 저장소는 있으면 쓰고 없으면 세션이 안 남을 뿐이다. 사이트 데이터 차단·일부 프라이빗 모드에서는
+ * `sessionStorage` 접근 자체가 던지는데, 그때 로그인이나 복원까지 실패하면 안 된다.
+ */
+function readStoredToken() {
+  try {
+    return sessionStorage.getItem(accessTokenStorageKey)
+  } catch {
+    return null
+  }
+}
+
+function writeStoredToken(token: string | null) {
+  try {
+    if (token === null) sessionStorage.removeItem(accessTokenStorageKey)
+    else sessionStorage.setItem(accessTokenStorageKey, token)
+  } catch {
+    // 저장소가 막힌 브라우저. 이번 탭에서는 새로고침하면 다시 로그인한다.
+  }
+}
+
 export const useUserStore = defineStore('user', () => {
   /** `GET /users/me` 결과. 로그인 전이나 로그아웃 후에는 null. */
   const me = ref<UserMe | null>(null)
@@ -36,7 +57,7 @@ export const useUserStore = defineStore('user', () => {
   async function signIn(token: string) {
     accessToken.value = token
     setAccessToken(token)
-    sessionStorage.setItem(accessTokenStorageKey, token)
+    writeStoredToken(token)
     try {
       me.value = await getCurrentUser()
     } catch (error) {
@@ -53,11 +74,12 @@ export const useUserStore = defineStore('user', () => {
    * 토큰이 만료됐거나 조회가 실패하면 `signIn()`이 이미 로그아웃 상태로 되돌렸으므로 그대로 둔다.
    *
    * 여러 내비게이션이 동시에 기다려도 조회는 한 번만 하도록 첫 호출의 약속을 돌려준다.
+   * 그 약속이 거부되면 캐시된 채로 모든 내비게이션이 막히므로, 이 함수는 절대 reject하지 않는다.
    */
   let restoring: Promise<void> | null = null
   function restore() {
     restoring ??= (async () => {
-      const token = sessionStorage.getItem(accessTokenStorageKey)
+      const token = readStoredToken()
       if (token === null) return
       try {
         await signIn(token)
@@ -86,7 +108,7 @@ export const useUserStore = defineStore('user', () => {
   function signOut() {
     accessToken.value = null
     setAccessToken(null)
-    sessionStorage.removeItem(accessTokenStorageKey)
+    writeStoredToken(null)
     me.value = null
     useChatStore().reset()
   }

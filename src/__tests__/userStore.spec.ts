@@ -145,6 +145,32 @@ describe('user store — 새로고침 뒤 복원', () => {
     expect(await authHeader()).toBeUndefined()
   })
 
+  it('sessionStorage 접근이 던져도 복원은 거부되지 않는다 — 거부가 캐시되면 모든 내비게이션이 막힌다', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    })
+    const store = useUserStore()
+
+    await expect(store.restore()).resolves.toBeUndefined()
+    expect(store.signedIn).toBe(false)
+
+    getItem.mockRestore()
+  })
+
+  it('sessionStorage 쓰기가 던져도 로그인은 성공한다 — 세션이 안 남을 뿐이다', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    })
+    vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
+    const store = useUserStore()
+
+    await expect(store.signIn('tok')).resolves.toBeUndefined()
+    expect(store.signedIn).toBe(true)
+    expect(await authHeader()).toBe('Bearer tok')
+
+    setItem.mockRestore()
+  })
+
   it('여러 번 불러도 사용자 조회는 한 번만 한다', async () => {
     sessionStorage.setItem(storageKey, 'saved')
     vi.mocked(getCurrentUser).mockResolvedValue({ onboardingCompleted: true } as never)
