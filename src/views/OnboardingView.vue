@@ -243,7 +243,7 @@ async function answerReview(value: string) {
   } else if (reviewStage.value === 'companion') {
     reviewAnswers.value.companion = tagValue(COMPANION_OPTIONS, value)
     reviewStage.value = 'repeat'
-  } else {
+  } else if (reviewStage.value === 'repeat') {
     const repeatIntent = tagValue(REPEAT_OPTIONS, value)
     reviewAnswers.value.repeat = repeatIntent
     saving.value = true
@@ -270,6 +270,10 @@ async function answerReview(value: string) {
       saving.value = false
     }
     return
+  } else {
+    // 단계를 더하고 분기를 빠뜨리면 여기서 type-check가 실패한다.
+    const unhandled: never = reviewStage.value
+    return unhandled
   }
 
   reviewMessages.value.push({ role: 'ai', text: reviewQuestion(reviewStage.value) })
