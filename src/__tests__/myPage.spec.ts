@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
@@ -54,7 +54,9 @@ describe('마이페이지 프로필', () => {
 
   it('로그아웃하면 토큰과 사용자 상태를 비운 뒤 로그인 화면으로 이동한다', async () => {
     const { wrapper, store, router } = await mountMyPage()
-    const replaceSpy = vi.spyOn(router, 'replace')
+    // 실제로 이동시키면 로그인 화면의 lazy import가 테스트가 끝난 뒤 끝나고, 그때 vue-router가
+    // 내려간 jsdom의 history를 읽어 unhandled error가 난다(CI 플레이크). 호출만 확인한다.
+    const replaceSpy = vi.spyOn(router, 'replace').mockResolvedValue(undefined)
     store.me = { nickname: '예리' } as UserMe
 
     const logoutButton = wrapper
@@ -62,7 +64,6 @@ describe('마이페이지 프로필', () => {
       .find((button) => button.text().includes('로그아웃'))
     if (!logoutButton) throw new Error('로그아웃 버튼을 찾지 못했습니다.')
     await logoutButton.trigger('click')
-    await flushPromises()
 
     expect(setAccessToken).toHaveBeenCalledWith(null)
     expect(store.me).toBeNull()
