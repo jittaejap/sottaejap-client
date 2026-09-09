@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { routes } from '@/router'
+import MoneyInput from '@/components/common/MoneyInput.vue'
 import { createGoal, deleteGoal, getGoals, updateGoal } from '@/api/service'
 import type { Goal } from '@/api/types'
 import GoalSettingsView from '@/views/GoalSettingsView.vue'
@@ -112,5 +113,63 @@ describe('목표 자금 관리 — 예정일과 삭제 (#49)', () => {
     const { wrapper } = await mountView()
 
     expect(wrapper.findAll('button').some((item) => item.text().includes('목표 삭제'))).toBe(false)
+  })
+})
+
+describe('목표 자금 관리 — 모은 금액과 달성률 (#32)', () => {
+  it('두 비율을 지금 · 채택대로 가면 순서로 반올림해 보여준다', async () => {
+    vi.mocked(getGoals).mockResolvedValue([
+      { ...savedGoal, currentAmount: 400_000, achievementRate: 0.4, projectedRate: 0.5551 },
+    ])
+    const { wrapper } = await mountView()
+
+    const rates = wrapper.get('[data-testid="goal-rates"]').text()
+    expect(rates).toContain('지금')
+    expect(rates).toContain('40%')
+    expect(rates).toContain('채택대로 가면')
+    expect(rates).toContain('56%')
+  })
+
+  it('비율이 null이면 대체 문구를 보여준다', async () => {
+    vi.mocked(getGoals).mockResolvedValue([
+      { ...savedGoal, targetAmount: 0, achievementRate: null, projectedRate: null },
+    ])
+    const { wrapper } = await mountView()
+
+    expect(wrapper.get('[data-testid="goal-rates"]').text()).toBe(
+      '목표 금액을 정하면 달성률을 보여드려요.',
+    )
+  })
+
+  it('모은 금액을 고쳤을 때만 PUT에 currentAmount를 싣는다', async () => {
+    const { wrapper } = await mountView()
+
+    await click(wrapper, '저장하기')
+    expect(updateGoal).toHaveBeenLastCalledWith(7, { name: '여행 자금', targetAmount: 1_000_000 })
+
+    const currentAmountInput = wrapper.findAllComponents(MoneyInput)[1]!
+    await currentAmountInput.get('input').setValue('250000')
+    await click(wrapper, '저장하기')
+
+    expect(updateGoal).toHaveBeenLastCalledWith(7, {
+      name: '여행 자금',
+      targetAmount: 1_000_000,
+      currentAmount: 250_000,
+    })
+  })
+
+  it('목표가 없으면 입력한 모은 금액을 POST에 싣는다', async () => {
+    vi.mocked(getGoals).mockResolvedValue([])
+    const { wrapper } = await mountView()
+
+    const currentAmountInput = wrapper.findAllComponents(MoneyInput)[1]!
+    await currentAmountInput.get('input').setValue('80000')
+    await click(wrapper, '저장하기')
+
+    expect(createGoal).toHaveBeenCalledWith({
+      name: '여행 자금',
+      targetAmount: 1_000_000,
+      currentAmount: 80_000,
+    })
   })
 })
