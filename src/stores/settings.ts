@@ -11,7 +11,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const goalAmount = ref(1_000_000)
   const goalPeriod = ref(12)
   const sensitivity = ref<AnalysisSensitivity | null>('BALANCED')
-  const outlierBaseAmount = ref(1_000_000)
+  const outlierBaseAmount = ref(100_000)
 
   function updateBudget(value: number) {
     monthlyBudget.value = value

@@ -12,13 +12,13 @@ import {
 
 import AppTopBar from '@/components/common/AppTopBar.vue'
 import MoneyInput from '@/components/common/MoneyInput.vue'
+import { updateSettings } from '@/api/service'
 import { useSettingsStore, type AnalysisSensitivity } from '@/stores/settings'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const settings = useSettingsStore()
-const sensitivity = ref<AnalysisSensitivity | null>(settings.sensitivity)
-const lastPreset = ref<AnalysisSensitivity>(settings.sensitivity ?? 'BALANCED')
-const customBaseAmount = ref(settings.sensitivity === null ? settings.outlierBaseAmount : 0)
+const userStore = useUserStore()
 
 const options = [
   {
@@ -47,6 +47,15 @@ const options = [
   },
 ] as const
 
+const savedThreshold = userStore.me?.outlierThreshold ?? settings.outlierBaseAmount
+const legacyThresholds: Record<number, number> = { 3: 150_000, 2: 100_000, 1.5: 50_000 }
+const initialThreshold = legacyThresholds[savedThreshold] ?? savedThreshold
+const initialPreset =
+  options.find((option) => option.baseAmount === initialThreshold)?.value ?? null
+const sensitivity = ref<AnalysisSensitivity | null>(initialPreset)
+const lastPreset = ref<AnalysisSensitivity>(settings.sensitivity ?? 'BALANCED')
+const customBaseAmount = ref(initialThreshold)
+
 const selectedPreset = computed(() => options.find((option) => option.value === sensitivity.value))
 const effectiveBaseAmount = computed(
   () => customBaseAmount.value || selectedPreset.value?.baseAmount || 0,
@@ -56,7 +65,7 @@ const canSave = computed(() => effectiveBaseAmount.value > 0)
 function selectPreset(value: AnalysisSensitivity) {
   lastPreset.value = value
   sensitivity.value = value
-  customBaseAmount.value = 0
+  customBaseAmount.value = options.find((option) => option.value === value)?.baseAmount ?? 0
 }
 
 function selectCustomAmount(value: number) {
@@ -64,8 +73,10 @@ function selectCustomAmount(value: number) {
   sensitivity.value = value > 0 ? null : lastPreset.value
 }
 
-function save() {
+async function save() {
+  const me = await updateSettings({ outlierThreshold: effectiveBaseAmount.value })
   settings.updateAnalysisSettings(sensitivity.value, effectiveBaseAmount.value)
+  userStore.replaceMe(me)
   void router.push('/me')
 }
 </script>

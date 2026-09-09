@@ -104,6 +104,10 @@ export const useUserStore = defineStore('user', () => {
     me.value = { ...me.value, onboardingCompleted: true }
   }
 
+  function replaceMe(value: UserMe) {
+    me.value = value
+  }
+
   /** 로그아웃. 인증정보와 사용자별 메모리 상태를 함께 지워 계정 간 데이터가 섞이지 않게 한다. */
   function signOut() {
     accessToken.value = null
@@ -120,6 +124,7 @@ export const useUserStore = defineStore('user', () => {
     signIn,
     restore,
     markOnboardingCompleted,
+    replaceMe,
     signOut,
   }
 })
