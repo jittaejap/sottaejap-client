@@ -51,7 +51,7 @@ async function selectUpload(wrapper: VueWrapper) {
 }
 
 describe('온보딩 표본 회고', () => {
-  it('선택 카드 또는 직접 입력한 원 단위 기준 금액을 설정 API로 보낸다', async () => {
+  it('프리셋을 고르면 이상치 배수와 기준 금액을 함께 보낸다', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
     await router.push('/onboarding')
     await router.isReady()
@@ -67,7 +67,34 @@ describe('온보딩 표본 회고', () => {
 
     expect(updateSettings).toHaveBeenLastCalledWith({
       monthlyBudget: 2_500_000,
-      outlierThreshold: 50_000,
+      outlierThreshold: 1.5,
+      outlierBaseAmount: 50_000,
+      retrospectDelayDays: 1,
+    })
+  })
+
+  it('기준 금액을 직접 입력해도 프리셋이 정한 배수는 그대로 보낸다', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [...routes] })
+    await router.push('/onboarding')
+    await router.isReady()
+    const wrapper = mount(OnboardingView, { global: { plugins: [createPinia(), router] } })
+
+    await click(wrapper, '다음 단계로')
+
+    const relaxed = wrapper.findAll('button').find((item) => item.text().includes('여유 있게'))
+    if (!relaxed) throw new Error('여유 있게 버튼을 찾지 못했습니다.')
+    await relaxed.trigger('click')
+
+    const numericInputs = wrapper.findAll('input[inputmode="numeric"]')
+    const amountInput = numericInputs[numericInputs.length - 1]
+    if (!amountInput) throw new Error('기준 금액 입력란을 찾지 못했습니다.')
+    await amountInput.setValue('320000')
+    await click(wrapper, '다음 단계로')
+
+    expect(updateSettings).toHaveBeenLastCalledWith({
+      monthlyBudget: 2_500_000,
+      outlierThreshold: 3,
+      outlierBaseAmount: 320_000,
       retrospectDelayDays: 1,
     })
   })
