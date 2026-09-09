@@ -17,6 +17,27 @@ const kakaoStateKey = 'sottaejap-kakao-oauth-state'
 // 카카오는 전체 페이지를 떠났다 돌아오므로 `redirect` 쿼리가 살아남지 않는다. `state`처럼 세션에 둔다.
 const kakaoRedirectKey = 'sottaejap-kakao-oauth-redirect'
 
+// 사이트 데이터 차단·일부 프라이빗 모드에서는 `sessionStorage` 접근이 던진다. user store와 같은 이유로 감싼다.
+function writeSession(key: string, value: string) {
+  try {
+    sessionStorage.setItem(key, value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 한 번 읽고 지운다. `state`와 돌아갈 경로는 왕복 한 번에만 쓴다. */
+function takeSession(key: string) {
+  try {
+    const value = sessionStorage.getItem(key)
+    sessionStorage.removeItem(key)
+    return value
+  } catch {
+    return null
+  }
+}
+
 /**
  * 진입 가드가 남긴 `redirect` 쿼리. 로그아웃 상태에서 열었던 경로를 로그인 뒤 그대로 연다.
  * 문자열 검사 대신 URL 파서로 같은 출처인지 본다. `//evil.example`은 물론 `/\\evil.example`처럼
@@ -61,8 +82,14 @@ function startKakao() {
     return
   }
   const state = crypto.randomUUID()
-  sessionStorage.setItem(kakaoStateKey, state)
-  sessionStorage.setItem(kakaoRedirectKey, loginRedirectTarget(route.query.redirect))
+  // 저장소가 막히면 돌아왔을 때 `state`를 대조할 수 없다. 카카오로 넘어가기 전에 알린다.
+  if (
+    !writeSession(kakaoStateKey, state) ||
+    !writeSession(kakaoRedirectKey, loginRedirectTarget(route.query.redirect))
+  ) {
+    loginError.value = '카카오 로그인 요청을 확인할 수 없어요. 다시 시도해주세요.'
+    return
+  }
   const authorize = new URL('https://kauth.kakao.com/oauth/authorize')
   authorize.searchParams.set('client_id', clientId)
   authorize.searchParams.set('redirect_uri', redirectUri)
@@ -76,10 +103,8 @@ onMounted(async () => {
   const code = query.get('code')
   if (!code) return
   const state = query.get('state')
-  const expectedState = sessionStorage.getItem(kakaoStateKey)
-  const redirectTarget = loginRedirectTarget(sessionStorage.getItem(kakaoRedirectKey))
-  sessionStorage.removeItem(kakaoStateKey)
-  sessionStorage.removeItem(kakaoRedirectKey)
+  const expectedState = takeSession(kakaoStateKey)
+  const redirectTarget = loginRedirectTarget(takeSession(kakaoRedirectKey))
   window.history.replaceState({}, '', '/auth/callback')
   if (!state || state !== expectedState) {
     loginError.value = '카카오 로그인 요청을 확인할 수 없어요. 다시 시도해주세요.'
