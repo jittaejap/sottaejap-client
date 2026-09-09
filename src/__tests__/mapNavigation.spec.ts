@@ -492,6 +492,7 @@ describe('만족도 지도 이동', () => {
         id: 3,
         name: '여행 자금',
         targetAmount: 1_000_000,
+        targetDate: null,
         currentAmount: 0,
         adoptedSaving: 24_000,
         achievementRate: 0,

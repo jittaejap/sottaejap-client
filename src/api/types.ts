@@ -57,6 +57,8 @@ export interface Goal {
   id: number
   name: string
   targetAmount: number
+  /** `YYYY-MM-DD`. 아직 정하지 않았으면 null (05 v2.37 · E-114) */
+  targetDate: string | null
   currentAmount: number
   adoptedSaving: number
   achievementRate: number | null

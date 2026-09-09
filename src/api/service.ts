@@ -47,6 +47,7 @@ export async function getCurrentUser() {
 export async function createGoal(input: {
   name: string
   targetAmount: number
+  targetDate?: string
   currentAmount?: number
 }) {
   const response = await httpClient.post<Goal>('/goals', input)
@@ -60,7 +61,7 @@ export async function getGoals() {
 
 export async function updateGoal(
   goalId: number,
-  input: { name: string; targetAmount: number; currentAmount?: number },
+  input: { name: string; targetAmount: number; targetDate?: string; currentAmount?: number },
 ) {
   const response = await httpClient.put<Goal>(`/goals/${goalId}`, input)
   return response.data
@@ -223,4 +224,9 @@ export async function askAnalysis(message: string, recentMessages: RetrospectCha
     recentMessages,
   })
   return response.data
+}
+
+/** 05 §2 `DELETE /goals/{id}` — soft delete다. 채택 이력(`suggestions.goal_id`)은 서버가 그대로 둔다 (E-83). */
+export async function deleteGoal(goalId: number) {
+  await httpClient.delete(`/goals/${goalId}`)
 }
